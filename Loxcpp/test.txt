@@ -1,0 +1,16 @@
+const breakfast = "beignets";
+var beverage = "cafe au lait";
+breakfast = "beignets with " + beverage;
+{
+    var a = 2;
+    var b = 5 + a;
+    print b;
+
+    {
+        var c = 66;
+        c = 12;
+        print c;
+    }
+}
+
+print breakfast;

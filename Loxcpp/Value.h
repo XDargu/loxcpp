@@ -1,0 +1,85 @@
+#ifndef loxcpp_value_h
+#define loxcpp_value_h
+
+#include <vector>
+
+#include "Common.h"
+
+enum class ValueType
+{
+    BOOL,
+    NIL,
+    NUMBER,
+    OBJ
+};
+
+struct Obj;
+struct ObjString;
+
+union TypeUnion
+{
+    TypeUnion()
+        : boolean(false)
+    {}
+
+    TypeUnion(bool value)
+        : boolean(value)
+    {}
+
+    TypeUnion(double value)
+        : number(value)
+    {}
+
+    TypeUnion(Obj* obj)
+        : obj(obj)
+    {}
+
+    bool boolean;
+    double number;
+    Obj* obj;
+};
+
+struct Value
+{
+    Value()
+        : type(ValueType::NIL)
+    {}
+
+    Value(bool value)
+        : type(ValueType::BOOL)
+        , as(value)
+    {}
+
+    Value(double value)
+        : type(ValueType::NUMBER)
+        , as(value)
+    {}
+
+    Value(Obj* obj)
+        : type(ValueType::OBJ)
+        , as(obj)
+    {}
+
+    ValueType type;
+    TypeUnion as;
+
+    bool operator==(const Value& other) const;
+};
+
+inline bool asBoolean(const Value& value) { return value.as.boolean; }
+inline double asNumber(const Value& value) { return value.as.number; }
+inline Obj* asObject(const Value& value) { return value.as.obj; }
+
+inline bool isBoolean(const Value& value) { return value.type == ValueType::BOOL; }
+inline bool isNumber(const Value& value) { return value.type == ValueType::NUMBER; }
+inline bool isObject(const Value& value) { return value.type == ValueType::OBJ; }
+inline bool isNil(const Value& value) { return value.type == ValueType::NIL; }
+
+struct ValueArray 
+{
+    std::vector<Value> values;
+};
+
+void printValue(Value value);
+
+#endif
