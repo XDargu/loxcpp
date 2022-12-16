@@ -27,6 +27,19 @@ size_t dwordInstruction(const char* name, const Chunk& chunk, size_t offset)
     return offset + 2;
 }
 
+size_t jumpInstruction(const char* name, int sign, const Chunk& chunk, size_t offset)
+{
+    const uint8_t* jumpStart = &chunk.code[offset + 1];
+    // Interpret the constant as the next 2 elements in the vector
+    uint16_t jump = *reinterpret_cast<const uint16_t*>(jumpStart);
+
+    jump |= chunk.code[offset + 2];
+
+    std::cout << name << " " << +offset << " -> " << (offset + 3 + sign * jump) << std::endl;
+
+    return offset + 3;
+}
+
 size_t constantInstruction(const std::string& name, const Chunk& chunk, size_t offset)
 {
     const uint8_t constant = chunk.code[offset + 1];
@@ -126,10 +139,18 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return simpleInstruction("OP_MULTIPLY", offset);
     case OpCode::OP_DIVIDE:
         return simpleInstruction("OP_DIVIDE", offset);
+    case OpCode::OP_MODULO:
+        return simpleInstruction("OP_MODULO", offset);
     case OpCode::OP_NOT:
         return simpleInstruction("OP_NOT", offset);
     case OpCode::OP_PRINT:
         return simpleInstruction("OP_PRINT", offset);
+    case OpCode::OP_JUMP:
+        return jumpInstruction("OP_JUMP", 1, chunk, offset);
+    case OpCode::OP_JUMP_IF_FALSE:
+        return jumpInstruction("OP_JUMP_IF_FALSE", 1, chunk, offset);
+    case OpCode::OP_LOOP:
+        return jumpInstruction("OP_LOOP", -1, chunk, offset);
     case OpCode::OP_RETURN:
         return simpleInstruction("OP_RETURN", offset);
     default:
@@ -137,5 +158,5 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 27, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 31, "Missing operations in the Debug");
 }

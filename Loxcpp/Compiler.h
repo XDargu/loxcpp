@@ -87,11 +87,12 @@ class Compiler
       ParseRule(nullptr,              &Compiler::binary,   Precedence::COMPARISON),  // LESS          
       ParseRule(nullptr,              &Compiler::binary,   Precedence::COMPARISON),  // LESS_EQUAL    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // PLUS_PLUS     
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // MINUS_MINUS    // TODO
-      ParseRule(&Compiler::variable,  nullptr,             Precedence::NONE),        // IDENTIFIER     // TODO
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // MINUS_MINUS   // TODO
+      ParseRule(nullptr,              &Compiler::binary,   Precedence::FACTOR),      // PERCENTAGE    // TODO
+      ParseRule(&Compiler::variable,  nullptr,             Precedence::NONE),        // IDENTIFIER    // TODO
       ParseRule(&Compiler::string,    nullptr,             Precedence::NONE),        // STRING        
       ParseRule(&Compiler::number,    nullptr,             Precedence::NONE),        // NUMBER        
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // AND           
+      ParseRule(&Compiler::and_,      nullptr,             Precedence::NONE),        // AND           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CLASS         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // ELSE          
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // FALSE         
@@ -99,7 +100,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // FUN           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // IF            
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // NIL           
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // OR            
+      ParseRule(&Compiler::or_,       nullptr,             Precedence::NONE),        // OR            
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // PRINT         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RETURN        
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // SUPER         
@@ -124,12 +125,16 @@ public:
     void consume(TokenType type, const char* message);
     bool match(TokenType type);
     void emitDWord(uint32_t byte);
+    void emitShort(uint16_t byte);
     void emitByte(uint8_t byte);
     void emitBytes(uint8_t byte1, uint8_t byte2);
+    void emitLoop(size_t loopStart);
+    size_t emitJump(uint8_t instruction);
     void emitOpWithValue(OpCode shortOp, OpCode longOp, uint32_t value);
     void emitReturn();
     uint32_t makeConstant(Value value);
     void emitConstant(Value value);
+    void patchJump(size_t offset);
 
     void endCompiler();
 
@@ -137,6 +142,7 @@ public:
     void literal(bool canAssign);
     void grouping(bool canAssign);
     void number(bool canAssign);
+    void or_(bool canAssign);
     void string(bool canAssign);
     void namedVariable(const Token& name, bool canAssign);
     void variable(bool canAssign);
@@ -152,6 +158,7 @@ public:
     uint32_t parseVariable(const char* errorMessage, bool isConstant);
     void markInitialized();
     void defineVariable(uint32_t global, bool isConstant);
+    void and_(bool canAssign);
     const ParseRule* getRule(TokenType type) const;
     void expression();
     void block();
@@ -159,7 +166,10 @@ public:
     void endScope();
     void varDeclaration(bool isConstant);
     void expressionStatement();
+    void forStatement();
+    void ifStatement();
     void printStatement();
+    void whileStatement();
     void synchronize();
     void declaration();
     void statement();

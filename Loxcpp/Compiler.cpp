@@ -112,6 +112,15 @@ void Compiler::emitDWord(uint32_t byte)
     emitByte(vp[3]);
 }
 
+void Compiler::emitShort(uint16_t byte)
+{
+    // Convert constant to an array of 2 uint8_t
+    const uint8_t* vp = (uint8_t*)&byte;
+
+    emitByte(vp[0]);
+    emitByte(vp[1]);
+}
+
 void Compiler::emitByte(uint8_t byte)
 {
     currentChunk()->write(byte, parser.previous.line);
@@ -121,6 +130,24 @@ void Compiler::emitBytes(uint8_t byte1, uint8_t byte2)
 {
     emitByte(byte1);
     emitByte(byte2);
+}
+
+void Compiler::emitLoop(size_t loopStart)
+{
+    emitByte(OpByte(OpCode::OP_LOOP));
+
+    const size_t offset = currentChunk()->code.size() - loopStart + 2;
+    if (offset > UINT16_MAX) error("Loop body too large.");
+
+    emitShort(static_cast<uint16_t>(offset));
+}
+
+size_t Compiler::emitJump(uint8_t instruction)
+{
+    emitByte(instruction);
+
+    emitShort(0xffff);
+    return currentChunk()->code.size() - 2;
 }
 
 void Compiler::emitOpWithValue(OpCode shortOp, OpCode longOp, uint32_t value)
@@ -152,6 +179,23 @@ void Compiler::emitConstant(Value value)
     emitOpWithValue(OpCode::OP_CONSTANT, OpCode::OP_CONSTANT_LONG, constant);
 }
 
+void Compiler::patchJump(size_t offset)
+{
+    // -2 to adjust for the bytecode for the jump offset itself.
+    const size_t jump = currentChunk()->code.size() - offset - 2;
+
+    if (jump > UINT16_MAX)
+    {
+        error("Too much code to jump over.");
+    }
+
+    // Convert constant to an array of 2 uint8_t
+    const uint8_t* vp = (uint8_t*)&jump;
+
+    currentChunk()->code[offset] = vp[0];
+    currentChunk()->code[offset + 1] = vp[1];
+}
+
 void Compiler::endCompiler()
 {
 #ifdef DEBUG_PRINT_CODE
@@ -181,6 +225,7 @@ void Compiler::binary(bool canAssign)
         case TokenType::MINUS:         emitByte(OpByte(OpCode::OP_SUBTRACT)); break;
         case TokenType::STAR:          emitByte(OpByte(OpCode::OP_MULTIPLY)); break;
         case TokenType::SLASH:         emitByte(OpByte(OpCode::OP_DIVIDE)); break;
+        case TokenType::PERCENTAGE:    emitByte(OpByte(OpCode::OP_MODULO)); break;
         default: return; // Unreachable.
     }
 }
@@ -206,6 +251,18 @@ void Compiler::number(bool canAssign)
 {
     const double value = strtod(parser.previous.start, nullptr);
     emitConstant(Value(value));
+}
+
+void Compiler::or_(bool canAssign)
+{
+    const size_t elseJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+    const size_t endJump = emitJump(OpByte(OpCode::OP_JUMP));
+
+    patchJump(elseJump);
+    emitByte(OpByte(OpCode::OP_POP));
+
+    parsePrecedence(Precedence::OR);
+    patchJump(endJump);
 }
 
 void Compiler::string(bool canAssign)
@@ -419,6 +476,16 @@ void Compiler::defineVariable(uint32_t global, bool isConstant)
     emitOpWithValue(OpCode::OP_DEFINE_GLOBAL, OpCode::OP_DEFINE_GLOBAL_LONG, global);
 }
 
+void Compiler::and_(bool canAssign)
+{
+    const size_t endJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+
+    emitByte(OpByte(OpCode::OP_POP));
+    parsePrecedence(Precedence::AND);
+
+    patchJump(endJump);
+}
+
 const Compiler::ParseRule* Compiler::getRule(TokenType type) const
 {
     return &rules[static_cast<int>(type)];
@@ -479,11 +546,109 @@ void Compiler::expressionStatement()
     emitByte(OpByte(OpCode::OP_POP));
 }
 
+void Compiler::forStatement()
+{
+    beginScope();
+    consume(TokenType::LEFT_PAREN, "Expect '(' after 'for'.");
+
+    if (match(TokenType::SEMICOLON))
+    {
+        // No initializer.
+    }
+    else if (match(TokenType::CONST))
+    {
+        varDeclaration(true);
+    }
+    else if (match(TokenType::VAR))
+    {
+        varDeclaration(false);
+    }
+    else
+    {
+        expressionStatement();
+    }
+
+    size_t loopStart = currentChunk()->code.size();
+    size_t exitJump = SIZE_MAX;
+
+    if (!match(TokenType::SEMICOLON))
+    {
+        expression();
+        consume(TokenType::SEMICOLON, "Expect ';' after loop condition.");
+
+        // Jump out of the loop if the condition is false.
+        exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+        emitByte(OpByte(OpCode::OP_POP)); // Condition.
+    }
+
+    if (!match(TokenType::RIGHT_PAREN))
+    {
+        const size_t bodyJump = emitJump(OpByte(OpCode::OP_JUMP));
+        const size_t incrementStart = currentChunk()->code.size();
+        expression();
+        emitByte(OpByte(OpCode::OP_POP));
+        consume(TokenType::RIGHT_PAREN, "Expect ')' after for clauses.");
+
+        emitLoop(loopStart);
+        loopStart = incrementStart;
+        patchJump(bodyJump);
+    }
+
+    statement();
+    emitLoop(loopStart);
+
+    if (exitJump != SIZE_MAX)
+    {
+        patchJump(exitJump);
+        emitByte(OpByte(OpCode::OP_POP)); // Condition.
+    }
+
+    endScope();
+}
+
+void Compiler::ifStatement()
+{
+    consume(TokenType::LEFT_PAREN, "Expect '(' after 'if'.");
+    expression();
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.");
+
+    const size_t thenJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+    emitByte(OpByte(OpCode::OP_POP));
+    statement();
+
+    const size_t elseJump = emitJump(OpByte(OpCode::OP_JUMP));
+    patchJump(thenJump);
+    emitByte(OpByte(OpCode::OP_POP));
+
+    if (match(TokenType::ELSE))
+    {
+        statement();
+    }
+
+    patchJump(elseJump);
+}
+
 void Compiler::printStatement()
 {
     expression();
     consume(TokenType::SEMICOLON, "Expect ';' after value.");
     emitByte(OpByte(OpCode::OP_PRINT));
+}
+
+void Compiler::whileStatement()
+{
+    const size_t loopStart = currentChunk()->code.size();
+    consume(TokenType::LEFT_PAREN, "Expect '(' after 'while'.");
+    expression();
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after condition.");
+
+    const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+    emitByte(OpByte(OpCode::OP_POP));
+    statement();
+    emitLoop(loopStart);
+
+    patchJump(exitJump);
+    emitByte(OpByte(OpCode::OP_POP));
 }
 
 void Compiler::synchronize()
@@ -537,6 +702,18 @@ void Compiler::statement()
     if (match(TokenType::PRINT))
     {
         printStatement();
+    }
+    else if (match(TokenType::FOR))
+    {
+        forStatement();
+    }
+    else if (match(TokenType::IF))
+    {
+        ifStatement();
+    }
+    else if (match(TokenType::WHILE))
+    {
+        whileStatement();
     }
     else if (match(TokenType::LEFT_BRACE))
     {

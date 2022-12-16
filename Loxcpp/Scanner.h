@@ -16,6 +16,7 @@ enum class TokenType
     EQUAL, EQUAL_EQUAL,
     GREATER, GREATER_EQUAL,
     LESS, LESS_EQUAL, PLUS_PLUS, MINUS_MINUS,
+    PERCENTAGE,
 
     // Literals.
     IDENTIFIER, STRING, NUMBER,
@@ -59,6 +60,8 @@ public:
 
         skipWhitespace();
 
+        if (isAtEnd()) return makeToken(TokenType::EOFILE);
+
         start = current;
 
         const char c = advance();
@@ -78,6 +81,7 @@ public:
             case '-': return makeToken(match('-') ? TokenType::MINUS_MINUS : TokenType::MINUS);
             case '+': return makeToken(match('+') ? TokenType::PLUS_PLUS : TokenType::PLUS);
             case '*': return makeToken(TokenType::STAR);
+            case '%': return makeToken(TokenType::PERCENTAGE);
             case '!': return makeToken(match('=') ? TokenType::BANG_EQUAL : TokenType::BANG);
             case '=': return makeToken(match('=') ? TokenType::EQUAL_EQUAL : TokenType::EQUAL);
             case '<': return makeToken(match('=') ? TokenType::LESS_EQUAL : TokenType::LESS);

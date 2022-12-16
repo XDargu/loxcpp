@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <cstdarg>
+#include <cmath>
 
 #include "Debug.h"
 #include "Compiler.h"
@@ -45,6 +46,13 @@ InterpretResult VM::interpret(const std::string& source)
 InterpretResult VM::run()
 {
     auto readByte = [&]() -> uint8_t { return *ip++; };
+    auto readShort = [&]() -> uint16_t
+    {
+        const uint8_t* constantStart = ip;
+        ip += 2;
+        // Interpret the constant as the next 2 elements in the vector
+        return *reinterpret_cast<const uint16_t*>(constantStart);
+    };
     auto readDWord = [&]() -> uint32_t {
         const uint8_t* constantStart = ip;
         ip += 4;
@@ -183,16 +191,16 @@ InterpretResult VM::run()
             case OpCode::OP_GREATER:
             {
                 if (!validateBinaryOperator()) { return InterpretResult::INTERPRET_RUNTIME_ERROR; }
-                const bool b = asBoolean(pop());
-                const bool a = asBoolean(pop());
+                const double b = asNumber(pop());
+                const double a = asNumber(pop());
                 push(Value(a > b));
                 break;
             }
             case OpCode::OP_LESS:
             {
                 if (!validateBinaryOperator()) { return InterpretResult::INTERPRET_RUNTIME_ERROR; }
-                const bool b = asBoolean(pop());
-                const bool a = asBoolean(pop());
+                const double b = asNumber(pop());
+                const double a = asNumber(pop());
                 push(Value(a < b));
                 break;
             }
@@ -248,6 +256,14 @@ InterpretResult VM::run()
                 push(Value(a / b));
                 break;
             }
+            case OpCode::OP_MODULO:
+            {
+                if (!validateBinaryOperator()) { return InterpretResult::INTERPRET_RUNTIME_ERROR; }
+                const double b = asNumber(pop());
+                const double a = asNumber(pop());
+                push(Value(std::fmod(a, b)));
+                break;
+            }
             case OpCode::OP_NOT:
             {
                 push(isFalsey(pop()));
@@ -259,12 +275,30 @@ InterpretResult VM::run()
                 printf("\n");
                 break;
             }
+            case OpCode::OP_JUMP:
+            {
+                const uint16_t offset = readShort();
+                ip += offset;
+                break;
+            }
+            case OpCode::OP_JUMP_IF_FALSE:
+            {
+                const uint16_t offset = readShort();
+                if (isFalsey(peek(0))) ip += offset;
+                break;
+            }
+            case OpCode::OP_LOOP:
+            {
+                const uint16_t offset = readShort();
+                ip -= offset;
+                break;
+            }
             case OpCode::OP_RETURN:
             {
                 return InterpretResult::INTERPRET_OK;
             }
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 27, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 31, "Missing operations in the VM");
     }
 }
 

@@ -1,16 +1,86 @@
-const breakfast = "beignets";
-var beverage = "cafe au lait";
-breakfast = "beignets with " + beverage;
+// Fizzbuzz implementation
+for (var i=1; i<20; i=i+1)
 {
-    var a = 2;
-    var b = 5 + a;
-    print b;
-
-    {
-        var c = 66;
-        c = 12;
-        print c;
-    }
+    if (i % 15 == 0) { print "Fizzbuzz"; }
+    else if (i % 5 == 0) { print "Buzz"; }
+    else if (i % 3 == 0) { print "Fizz"; }
+    else { print i; }
 }
 
-print breakfast;
+/*
+How pattern matching could work:
+
+match(value)
+{
+    case "hello": print "Greeting";
+    case "no", "yes": print "Reply";
+    default: print "I don't know";
+}
+
+match(value)
+{
+    case 1..10: print "Value from 1 to 10";
+    case 20: print "That's a 20";
+    default: "Rest of numbers";
+}
+
+// Value patterns:
+1
+2
+"hello"
+4+5
+true
+
+// tuples
+1, 2, 5
+5, "hello", false
+
+// ranges
+1..10
+5.. // 5 to infinity
+..6 // -infinity to 6
+
+// Destructuring objects
+var person = { name: "Daniel", surname: "Armesto"}
+match(a)
+{
+    case { name: "Daniel", surname: "Armesto" }: print "It's a Daniel Armesto";
+    case { name: "Daniel", surname: s }: print "It's a Daniel with surname: " + s;
+}
+
+// Arrays/Vectors/Lists once we have them
+
+var arr = [1,2,3];
+match(arr)
+{
+    case [1,2,3]: print "array 1, 2, 3";
+    case [1,2,..]: print "array that starts with 1, 2";
+    case [..,2,3]: print "array that ends with 2, 3";
+    case [..,2,..]: print "array that has a 2 in the middle";
+    case [1, a]: print "array that starts with 1 and ends with: " + a;
+    case [1, tail..]: print "array that starts with 1 and has a tail: " + tail;
+}
+
+// Variable binding
+// Bind the value to a temporary variable
+// Also, check for conditions:
+match(value)
+{
+    case v if v % 15 == 0: print v + ": Fizzbuzz";
+    case v if v % 5 == 0:  print v + ": Buzz";
+    case v if v % 3 == 0:  print v + ": Fizz";
+    case v: print v;
+}
+
+It would also be cool to do:
+
+var value = match(whatever)
+{
+    case: "hi": 2;
+    case: "no": 5;
+    default: 9;
+};
+
+
+
+*/
