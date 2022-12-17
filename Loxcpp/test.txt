@@ -1,27 +1,16 @@
-fun fib(n) {
-  if (n < 2) return n;
-  return fib(n - 2) + fib(n - 1);
-}
-
-print "Starting";
-
-var start = clock();
-print fib(35);
-print clock() - start;
-
-
 // Fizzbuzz implementation
-
-/*for (var i=1; i<20; i=i+1)
+for (var i=1; i<20; i=i+1)
 {
-    if (i % 15 == 0) { print "Fizzbuzz"; }
-    else if (i % 5 == 0) { print "Buzz"; }
-    else if (i % 3 == 0) { print "Fizz"; }
-    else { print i; }
-}*/
-
-
-
+    //print "hi";
+    match(i)
+    {
+        case n if n % 15 == 0: print "Fizzbuzz";
+        case n if n % 5 == 0: print "Buzz";
+        case n if n % 3 == 0: print "Fizz";
+        case n: print n;
+    }
+    //print "bye";
+}
 
 
 /*
@@ -44,14 +33,14 @@ match(value)
 {
     case "hello": print "Greeting";
     case "no", "yes": print "Reply";
-    default: print "I don't know";
+    case n: print "I don't know";
 }
 
 match(value)
 {
     case 1..10: print "Value from 1 to 10";
     case 20: print "That's a 20";
-    default: "Rest of numbers";
+    case n: "Rest of numbers";
 }
 
 // Value patterns:
@@ -133,7 +122,7 @@ for char in "hello"
 for i in [1,2,3]
     print i;
 
-// Lazy ranges might be a bit too much?
+// Lazy/inf ranges might be a bit too much?
 for i in (1..)
 
 

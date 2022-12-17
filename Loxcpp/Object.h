@@ -13,6 +13,7 @@ enum class ObjType
     STRING,
     NATIVE,
     FUNCTION,
+    RANGE,
 };
 
 struct Obj
@@ -74,15 +75,39 @@ struct ObjNative : Obj
         , function(function)
         , arity(arity)
     {
-        //std::cout << "FUNCTION created: " << this->chars << std::endl;
+        //std::cout << "NATIVE created: " << this->chars << std::endl;
     }
     ~ObjNative()
     {
-        //std::cout << "FUNCTION destroyed: " << this->chars << std::endl;
+        //std::cout << "NATIVE destroyed: " << this->chars << std::endl;
     }
 
     NativeFn function;
     uint8_t arity;
+};
+
+struct ObjRange : Obj
+{
+    ObjRange(double min, double max)
+        : Obj(ObjType::RANGE)
+        , min(min)
+        , max(max)
+    {
+        //std::cout << "RANGE created: " << this->chars << std::endl;
+    }
+    ~ObjRange()
+    {
+        //std::cout << "RANGE destroyed: " << this->chars << std::endl;
+    }
+
+    bool contains(double value)
+    {
+        if (min < max) return value >= min && value<= max; // 1..5
+        return value <= min && value >= max; // 5..1
+    }
+
+    double min;
+    double max;
 };
 
 inline ObjType getObjType(const Value& value) { return asObject(value)->type; }
@@ -93,18 +118,22 @@ inline bool isObjType(const Value& value, const ObjType type)
 inline bool isString(const Value& value) { return isObjType(value, ObjType::STRING); }
 inline bool isFunction(const Value& value) { return isObjType(value, ObjType::FUNCTION); }
 inline bool isNative(const Value& value) { return isObjType(value, ObjType::NATIVE); }
+inline bool isRange(const Value& value) { return isObjType(value, ObjType::RANGE); }
 
 inline const char* asCString(const Value& value) { return static_cast<ObjString*>(asObject(value))->chars.c_str(); }
 
 inline ObjString* asString(const Value& value) { return static_cast<ObjString*>(asObject(value)); }
 inline ObjFunction* asFunction(const Value& value) { return static_cast<ObjFunction*>(asObject(value)); }
 inline ObjNative* asNative(const Value& value) { return static_cast<ObjNative*>(asObject(value)); }
+inline ObjRange* asRange(const Value& value) { return static_cast<ObjRange*>(asObject(value)); }
 
 ObjString* copyString(const char* chars, int length);
 ObjString* takeString(const char* chars, int length);
 
 ObjFunction* newFunction();
 ObjNative* newNative(uint8_t arity, NativeFn function);
+
+ObjRange* newRange(double min, double max);
 
 void printObject(Value value);
 

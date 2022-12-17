@@ -255,6 +255,7 @@ void Compiler::binary(bool canAssign)
         case TokenType::STAR:          emitByte(OpByte(OpCode::OP_MULTIPLY)); break;
         case TokenType::SLASH:         emitByte(OpByte(OpCode::OP_DIVIDE)); break;
         case TokenType::PERCENTAGE:    emitByte(OpByte(OpCode::OP_MODULO)); break;
+        case TokenType::DOT_DOT:       emitByte(OpByte(OpCode::OP_RANGE)); break;
         default: return; // Unreachable.
     }
 }
@@ -284,6 +285,7 @@ void Compiler::grouping(bool canAssign)
 
 void Compiler::number(bool canAssign)
 {
+    // We need to split the range in two integers
     const double value = strtod(parser.previous.start, nullptr);
     emitConstant(Value(value));
 }
@@ -452,7 +454,7 @@ void Compiler::addLocal(const Token& name, bool isConstant)
 
     Local* local = &current->locals[current->localCount++];
     local->name = name;
-    local->depth = -1;
+    local->depth = current->scopeDepth;
     local->constant = isConstant;
 }
 
@@ -778,34 +780,82 @@ void Compiler::matchStatement()
     while (match(TokenType::CASE))
     {
         beginScope();
-        pattern();
 
-        emitByte(OpByte(OpCode::OP_EQUAL_TOP));
+        const bool hasIdentifier = pattern();
+
+        emitByte(OpByte(OpCode::OP_MATCH));
         const size_t nextCaseJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
         emitByte(OpByte(OpCode::OP_POP));
+
+        if (hasIdentifier)
+        {
+            emitByte(OpByte(OpCode::OP_POP));
+        }
 
         consume(TokenType::COLON, "Expect ':' after pattern.");
 
         statement();
-        endScope();
-        const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+
+        // Hack to "end scope" here too and pop all variables
+        // TODO: How to do this in a correct way?
+        int localCount = current->localCount;
+        while (localCount > 0 &&
+            current->locals[localCount - 1].depth > (current->scopeDepth - 1))
+        {
+            emitByte(OpByte(OpCode::OP_POP));
+            localCount--;
+        }
+
+        const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP));
         exitJumps.push_back(exitJump);
 
         patchJump(nextCaseJump);
         emitByte(OpByte(OpCode::OP_POP));
+
+        if (hasIdentifier)
+        {
+            emitByte(OpByte(OpCode::OP_POP));
+        }
         endScope();
     }
 
     consume(TokenType::RIGHT_BRACE, "Expect '}' after 'match expression cases'.");
 
+
     for (const size_t exitJump : exitJumps)
         patchJump(exitJump);
 
+    emitByte(OpByte(OpCode::OP_POP)); // Value is not popped by the match expr
+
 }
 
-void Compiler::pattern()
+bool Compiler::pattern()
 {
+    if (check(TokenType::IDENTIFIER))
+    {
+        const uint32_t constant = parseVariable("Expect match variable name.", false);
+        defineVariable(constant, false);
+        variable(false);
+
+        // We need to compare the guard to true
+        emitByte(OpByte(OpCode::OP_TRUE));
+
+        // Optional guard
+        if (match(TokenType::IF))
+        {
+            expression();
+        }
+        else
+        {
+            // No guard, always true
+            emitByte(OpByte(OpCode::OP_TRUE));
+        }
+
+        return true;
+    }
+
     expression();
+    return false;
 }
 
 void Compiler::synchronize()

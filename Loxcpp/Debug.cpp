@@ -125,8 +125,8 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return constantLongInstruction("OP_SET_GLOBAL_LONG", chunk, offset);
     case OpCode::OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
-    case OpCode::OP_EQUAL_TOP:
-        return simpleInstruction("OP_EQUAL_TOP", offset);
+    case OpCode::OP_MATCH:
+        return simpleInstruction("OP_MATCH", offset);
     case OpCode::OP_GREATER:
         return simpleInstruction("OP_GREATER", offset);
     case OpCode::OP_LESS:
@@ -143,6 +143,8 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return simpleInstruction("OP_DIVIDE", offset);
     case OpCode::OP_MODULO:
         return simpleInstruction("OP_MODULO", offset);
+    case OpCode::OP_RANGE:
+        return simpleInstruction("OP_RANGE", offset);
     case OpCode::OP_NOT:
         return simpleInstruction("OP_NOT", offset);
     case OpCode::OP_PRINT:
@@ -162,5 +164,5 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 33, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 34, "Missing operations in the Debug");
 }

@@ -20,6 +20,7 @@ enum class Precedence : uint8_t
     TERM,        // + -
     FACTOR,      // * /
     UNARY,       // ! -
+    RANGE,       // ..
     CALL,        // . ()
     PRIMARY
 };
@@ -97,6 +98,7 @@ class Compiler
       ParseRule(nullptr,              &Compiler::binary,   Precedence::COMPARISON),  // LESS_EQUAL    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // PLUS_PLUS     
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // MINUS_MINUS   // TODO
+      ParseRule(nullptr,              &Compiler::binary,   Precedence::RANGE),       // DOT_DOT       // TODO
       ParseRule(nullptr,              &Compiler::binary,   Precedence::FACTOR),      // PERCENTAGE    // TODO
       ParseRule(&Compiler::variable,  nullptr,             Precedence::NONE),        // IDENTIFIER    // TODO
       ParseRule(&Compiler::string,    nullptr,             Precedence::NONE),        // STRING        
@@ -189,7 +191,7 @@ public:
     void returnStatement();
     void whileStatement();
     void matchStatement();
-    void pattern();
+    bool pattern();
     void synchronize();
     void declaration();
     void statement();

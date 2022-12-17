@@ -212,11 +212,18 @@ InterpretResult VM::run()
                 push(Value(a == b));
                 break;
             }
-            case OpCode::OP_EQUAL_TOP:
+            case OpCode::OP_MATCH:
             {
-                const Value b = pop();
-                const Value a = peek(0);
-                push(Value(a == b));
+                const Value pattern = pop();
+                const Value value = peek(0);
+                if (isRange(pattern) && isNumber(value))
+                {
+                    push(Value(asRange(pattern)->contains(asNumber(value))));
+                }
+                else
+                {
+                    push(Value(value == pattern));
+                }
                 break;
             }
             case OpCode::OP_GREATER:
@@ -295,6 +302,14 @@ InterpretResult VM::run()
                 push(Value(std::fmod(a, b)));
                 break;
             }
+            case OpCode::OP_RANGE:
+            {
+                if (!validateBinaryOperator()) { return InterpretResult::INTERPRET_RUNTIME_ERROR; }
+                const double max = asNumber(pop());
+                const double min = asNumber(pop());
+                push(Value(newRange(min, max)));
+                break;
+            }
             case OpCode::OP_NOT:
             {
                 push(isFalsey(pop()));
@@ -350,7 +365,7 @@ InterpretResult VM::run()
                 break;
             }
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 33, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 34, "Missing operations in the VM");
     }
 }
 

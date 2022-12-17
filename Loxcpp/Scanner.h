@@ -15,7 +15,7 @@ enum class TokenType
     BANG, BANG_EQUAL,
     EQUAL, EQUAL_EQUAL,
     GREATER, GREATER_EQUAL,
-    LESS, LESS_EQUAL, PLUS_PLUS, MINUS_MINUS,
+    LESS, LESS_EQUAL, PLUS_PLUS, MINUS_MINUS, DOT_DOT,
     PERCENTAGE,
 
     // Literals.
@@ -77,7 +77,7 @@ public:
             case '{': return makeToken(TokenType::LEFT_BRACE);
             case '}': return makeToken(TokenType::RIGHT_BRACE);
             case ',': return makeToken(TokenType::COMMA);
-            case '.': return makeToken(TokenType::DOT);
+            case '.': return makeToken(match('.') ? TokenType::DOT_DOT : TokenType::DOT);
             case ';': return makeToken(TokenType::SEMICOLON);
             case ':': return makeToken(TokenType::COLON);
             case '-': return makeToken(match('-') ? TokenType::MINUS_MINUS : TokenType::MINUS);

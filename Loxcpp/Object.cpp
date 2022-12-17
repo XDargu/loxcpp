@@ -18,7 +18,7 @@ uint32_t hashString(const char* key, int length)
 
 ObjString* allocateString(const char* chars, int length, uint32_t hash)
 {
-    // TODO: the std::string allocates memory in the heap, can be improved!
+    // TODO: the std::string allocates memory in the heap out of our control, it can be improved!
     ObjString* string = new ObjString(chars, length);
     VM::getInstance().addObject(string);
     string->hash = hash;
@@ -59,6 +59,13 @@ ObjNative* newNative(uint8_t arity, NativeFn function)
     return native;
 }
 
+ObjRange* newRange(double min, double max)
+{
+    ObjRange* range = new ObjRange(min, max);
+    VM::getInstance().addObject(range);
+    return range;
+}
+
 void printFunction(ObjFunction* function)
 {
     if (function->name == nullptr)
@@ -67,6 +74,11 @@ void printFunction(ObjFunction* function)
         return;
     }
     std::cout << "<fn " << function->name->chars << ">";
+}
+
+void printRange(ObjRange* range)
+{
+    std::cout << range->min << ".." << range->max;
 }
 
 void printObject(Value value)
@@ -81,6 +93,9 @@ void printObject(Value value)
         break;
     case ObjType::FUNCTION:
         printFunction(asFunction(value));
+        break;
+    case ObjType::RANGE:
+        printRange(asRange(value));
         break;
     }
 }

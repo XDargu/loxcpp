@@ -10,7 +10,7 @@ const std::string& tokenTypeToString(const TokenType type)
         "BANG", "BANG_EQUAL",
         "EQUAL", "EQUAL_EQUAL",
         "GREATER", "GREATER_EQUAL",
-        "LESS", "LESS_EQUAL", "PLUS_PLUS", "MINUS_MINUS",
+        "LESS", "LESS_EQUAL", "PLUS_PLUS", "MINUS_MINUS", "DOT_DOT"
         "PERCENTAGE",
 
         // Literals.
