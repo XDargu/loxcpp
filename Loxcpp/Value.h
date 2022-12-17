@@ -2,6 +2,7 @@
 #define loxcpp_value_h
 
 #include <vector>
+#include <string>
 
 #include "Common.h"
 
@@ -80,6 +81,7 @@ struct ValueArray
     std::vector<Value> values;
 };
 
-void printValue(Value value);
+void printValue(const Value& value);
+ObjString* valueAsString(const Value& value);
 
 #endif

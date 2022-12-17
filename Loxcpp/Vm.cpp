@@ -58,6 +58,23 @@ InterpretResult VM::interpret(const std::string& source)
 
         return Value(takeString("", 0));
     });
+    defineNative("writeFile", 2, [](int argCount, Value* args)
+    {
+        if (isString(args[0]) && isString(args[1]))
+        {
+            ObjString* fileName = asString(args[0]);
+            ObjString* content = asString(args[1]);
+
+            std::ofstream fileStream(fileName->chars.c_str());
+            if (fileStream.is_open())
+            {
+                fileStream.write(content->chars.c_str(), content->chars.length());
+            }
+            fileStream.close();
+        }
+
+        return Value();
+    });
 
     push(Value(function));
     call(function, 0);
@@ -263,6 +280,23 @@ InterpretResult VM::run()
                     const double a = asNumber(pop());
                     push(Value(a + b));
                 }
+                else if (isString(peek(0)))
+                {
+                    ObjString* a = asString(pop());
+                    ObjString* val = valueAsString(pop());  // TODO: This allocates memory!
+                    
+                    ObjString* result = ::concatenate(val, a);
+                    push(Value(result));
+
+                }
+                else if (isString(peek(1)))
+                {
+                    ObjString* val = valueAsString(pop()); // TODO: This allocates memory!
+                    ObjString* b = asString(pop());
+
+                    ObjString* result = ::concatenate(b, val);
+                    push(Value(result));
+                }
                 else
                 {
                     runtimeError("Operands must be two numbers or two strings.");
@@ -428,10 +462,7 @@ void VM::concatenate()
     ObjString* b = asString(pop());
     ObjString* a = asString(pop());
 
-    std::string concat = a->chars + b->chars; // TODO: This allocates memory!
-
-    ObjString* result = takeString(concat.c_str(), concat.length());
-    push(Value(result));
+    push(Value(::concatenate(a, b)));
 }
 
 void VM::push(Value value)

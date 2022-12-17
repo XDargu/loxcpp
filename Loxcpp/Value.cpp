@@ -4,7 +4,7 @@
 
 #include "Object.h"
 
-void printValue(Value value)
+void printValue(const Value& value)
 {
     switch (value.type)
     {
@@ -15,7 +15,19 @@ void printValue(Value value)
     case ValueType::NUMBER: std::cout << asNumber(value); break;
     case ValueType::OBJ: printObject(value); break;
     }
-    
+}
+
+ObjString* valueAsString(const Value& value)
+{
+    switch (value.type)
+    {
+    case ValueType::BOOL: return (asBoolean(value) ? takeString("true", 4) : takeString("false", 5));
+    case ValueType::NIL: return takeString("nil", 3);
+    case ValueType::NUMBER: return takeString(std::to_string(asNumber(value)));
+    case ValueType::OBJ: objectAsString(value); break;
+    }
+
+    return takeString("<Unknown>", 9);
 }
 
 bool Value::operator==(const Value& other) const

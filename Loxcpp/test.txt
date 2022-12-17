@@ -1,15 +1,14 @@
 // Fizzbuzz implementation
+
 for (var i=1; i<20; i=i+1)
 {
-    //print "hi";
     match(i)
     {
-        case n if n % 15 == 0: print "Fizzbuzz";
+        case n if n % 15 == 0: print "FizzBuzz";
         case n if n % 5 == 0: print "Buzz";
         case n if n % 3 == 0: print "Fizz";
         case n: print n;
     }
-    //print "bye";
 }
 
 

@@ -38,6 +38,13 @@ struct ObjString : Obj
     {
         //std::cout << "STRING created: " << this->chars << std::endl;
     }
+    ObjString(std::string&& str)
+        : Obj(ObjType::STRING)
+        , length(str.length())
+        , chars(std::move(str))
+    {
+        //std::cout << "STRING created: " << this->chars << std::endl;
+    }
     ~ObjString()
     {
         //std::cout << "STRING destroyed: " << this->chars << std::endl;
@@ -129,12 +136,15 @@ inline ObjRange* asRange(const Value& value) { return static_cast<ObjRange*>(asO
 
 ObjString* copyString(const char* chars, int length);
 ObjString* takeString(const char* chars, int length);
+ObjString* takeString(std::string&& chars);
 
 ObjFunction* newFunction();
 ObjNative* newNative(uint8_t arity, NativeFn function);
 
 ObjRange* newRange(double min, double max);
 
-void printObject(Value value);
+void printObject(const Value& value);
+ObjString* objectAsString(const Value& value);
+ObjString* concatenate(ObjString* a, ObjString* b);
 
 #endif
