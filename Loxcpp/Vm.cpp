@@ -1,8 +1,11 @@
 #include "Vm.h"
 
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <cstdarg>
 #include <cmath>
+#include <time.h>
 
 #include "Debug.h"
 #include "Compiler.h"
@@ -15,52 +18,73 @@ bool isFalsey(Value value)
 
 VM::VM()
     : stackTop(nullptr)
-    , chunk(nullptr)
-    , ip(nullptr)
-{}
-
-InterpretResult VM::interpret(Chunk* chunk)
+    , frames()
+    , frameCount(0)
 {
-    this->chunk = chunk;
-    //this->ip = &chunk->code[0];
-    ip = &chunk->code[0];
-
-    stackTop = &stack[0];
-
-    return run();
+    resetStack();
 }
 
 InterpretResult VM::interpret(const std::string& source)
 {
-    Chunk chunk;
     Compiler compiler(source);
 
-    if (!compiler.compile(&chunk))
-    {
-        return InterpretResult::INTERPRET_COMPILE_ERROR;
-    }
+    ObjFunction* function = compiler.compile();
+    if (function == nullptr) return InterpretResult::INTERPRET_COMPILE_ERROR;
 
-    return interpret(&chunk);
+    resetStack();
+
+    defineNative("clock", 0, [](int argCount, Value* args)
+    {
+        return Value((double)clock() / CLOCKS_PER_SEC);
+    });
+    defineNative("readInput", 0, [](int argCount, Value* args)
+    {
+        std::string line;
+        std::getline(std::cin, line);
+
+        return Value(takeString(line.c_str(), line.length()));
+    });
+    defineNative("readFile", 1, [](int argCount, Value* args)
+    {
+        if (isString(args[0]))
+        {
+            ObjString* fileName = asString(args[0]);
+            std::ifstream fileStream(fileName->chars);
+            std::stringstream buffer;
+            buffer << fileStream.rdbuf();
+            fileStream.close();
+            return Value(takeString(buffer.str().c_str(), buffer.str().length()));
+        }
+
+        return Value(takeString("", 0));
+    });
+
+    push(Value(function));
+    call(function, 0);
+
+    return run();
 }
 
 InterpretResult VM::run()
 {
-    auto readByte = [&]() -> uint8_t { return *ip++; };
+    CallFrame* frame = &frames[frameCount - 1];
+
+    auto readByte = [&]() -> uint8_t { return *frame->ip++; };
     auto readShort = [&]() -> uint16_t
     {
-        const uint8_t* constantStart = ip;
-        ip += 2;
+        const uint8_t* constantStart = frame->ip;
+        frame->ip += 2;
         // Interpret the constant as the next 2 elements in the vector
         return *reinterpret_cast<const uint16_t*>(constantStart);
     };
     auto readDWord = [&]() -> uint32_t {
-        const uint8_t* constantStart = ip;
-        ip += 4;
+        const uint8_t* constantStart = frame->ip;
+        frame->ip += 4;
         // Interpret the constant as the next 4 elements in the vector
         return *reinterpret_cast<const uint32_t*>(constantStart);
     };
-    auto readConstant = [&]() -> Value { return chunk->constants.values[readByte()]; };
-    auto readLongConstant = [&]() -> Value { return chunk->constants.values[readDWord()]; };
+    auto readConstant = [&]() -> Value { return frame->function->chunk.constants.values[readByte()]; };
+    auto readLongConstant = [&]() -> Value { return frame->function->chunk.constants.values[readDWord()]; };
     auto readString = [&]() -> ObjString* { return asString(readConstant()); };
     auto readStringLong = [&]() -> ObjString* { return asString(readLongConstant()); };
 
@@ -75,7 +99,7 @@ InterpretResult VM::run()
             std::cout << " ]";
         }
         std::cout << std::endl;
-        disassembleInstruction(*chunk, static_cast<int>(ip - &chunk->code[0]));
+        disassembleInstruction(frame->function->chunk, static_cast<size_t>(frame->ip - &frame->function->chunk.code[0]));
 #endif
 
         const OpCode instruction = static_cast<OpCode>(readByte());
@@ -100,25 +124,25 @@ InterpretResult VM::run()
             case OpCode::OP_GET_LOCAL:
             {
                 const uint8_t slot = readByte();
-                push(stack[slot]);
+                push(frame->slots[slot]);
                 break;
             }
             case OpCode::OP_SET_LOCAL:
             {
                 const uint8_t slot = readByte();
-                stack[slot] = peek(0);
+                frame->slots[slot] = peek(0);
                 break;
             }
             case OpCode::OP_GET_LOCAL_LONG:
             {
                 const uint8_t slot = readDWord();
-                push(stack[slot]);
+                push(frame->slots[slot]);
                 break;
             }
             case OpCode::OP_SET_LOCAL_LONG:
             {
                 const uint8_t slot = readDWord();
-                stack[slot] = peek(0);
+                frame->slots[slot] = peek(0);
                 break;
             }
             case OpCode::OP_GET_GLOBAL:
@@ -127,7 +151,7 @@ InterpretResult VM::run()
                 Value value;
                 if (!globals.get(name, &value))
                 {
-                    runtimeError("Undefined variable '%s'.", name->chars);
+                    runtimeError("Undefined variable '%s'.", name->chars.c_str());
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
                 push(value);
@@ -146,7 +170,7 @@ InterpretResult VM::run()
                 if (globals.set(name, peek(0)))
                 {
                     globals.remove(name);
-                    runtimeError("Undefined variable '%s'.", name->chars);
+                    runtimeError("Undefined variable '%s'.", name->chars.c_str());
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -157,7 +181,7 @@ InterpretResult VM::run()
                 Value value;
                 if (!globals.get(name, &value))
                 {
-                    runtimeError("Undefined variable '%s'.", name->chars);
+                    runtimeError("Undefined variable '%s'.", name->chars.c_str());
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
                 push(value);
@@ -176,7 +200,7 @@ InterpretResult VM::run()
                 if (globals.set(name, peek(0)))
                 {
                     globals.remove(name);
-                    runtimeError("Undefined variable '%s'.", name->chars);
+                    runtimeError("Undefined variable '%s'.", name->chars.c_str());
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
                 break;
@@ -185,6 +209,13 @@ InterpretResult VM::run()
             {
                 const Value b = pop();
                 const Value a = pop();
+                push(Value(a == b));
+                break;
+            }
+            case OpCode::OP_EQUAL_TOP:
+            {
+                const Value b = pop();
+                const Value a = peek(0);
                 push(Value(a == b));
                 break;
             }
@@ -278,33 +309,55 @@ InterpretResult VM::run()
             case OpCode::OP_JUMP:
             {
                 const uint16_t offset = readShort();
-                ip += offset;
+                frame->ip += offset;
                 break;
             }
             case OpCode::OP_JUMP_IF_FALSE:
             {
                 const uint16_t offset = readShort();
-                if (isFalsey(peek(0))) ip += offset;
+                if(isFalsey(peek(0))) frame->ip += offset;
                 break;
             }
             case OpCode::OP_LOOP:
             {
                 const uint16_t offset = readShort();
-                ip -= offset;
+                frame->ip -= offset;
+                break;
+            }
+            case OpCode::OP_CALL:
+            {
+                const uint8_t argCount = readByte();
+                if (!callValue(peek(argCount), argCount))
+                {
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &frames[frameCount - 1];
                 break;
             }
             case OpCode::OP_RETURN:
             {
-                return InterpretResult::INTERPRET_OK;
+                Value result = pop();
+                frameCount--;
+                if (frameCount == 0)
+                {
+                    pop();
+                    return InterpretResult::INTERPRET_OK;
+                }
+
+                stackTop = frame->slots;
+                push(result);
+                frame = &frames[frameCount - 1];
+                break;
             }
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 31, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 33, "Missing operations in the VM");
     }
 }
 
 void VM::resetStack()
 {
-    stackTop = 0;
+    stackTop = &stack[0];
+    frameCount = 0;
 }
 
 inline void VM::runtimeError(const char* format, ...) 
@@ -315,10 +368,33 @@ inline void VM::runtimeError(const char* format, ...)
     va_end(args);
     fputs("\n", stderr);
 
-    const size_t instruction = ip - &chunk->code[0] - 1;
-    const int line = chunk->lines[instruction];
-    std::cerr << "[line " << line << "] in script" << std::endl;
+    for (int i = frameCount - 1; i >= 0; i--)
+    {
+        const CallFrame& frame = frames[i];
+        const ObjFunction* function = frame.function;
+        const size_t instruction = frame.ip - &function->chunk.code[0] - 1;
+
+        std::cerr << "[line " << function->chunk.lines[instruction] << "] in ";
+        if (function->name == nullptr)
+        {
+            std::cerr << "script" << std::endl;
+        }
+        else
+        {
+            std::cerr << function->name->chars << "()" << std::endl;
+        }
+    }
+
     resetStack();
+}
+
+inline void VM::defineNative(const char* name, uint8_t arity, NativeFn function)
+{
+    push(Value(copyString(name, (int)strlen(name))));
+    push(Value(newNative(arity, function)));
+    globals.set(asString(stack[0]), stack[1]);
+    pop();
+    pop();
 }
 
 bool VM::validateBinaryOperator()
@@ -341,4 +417,71 @@ void VM::concatenate()
 
     ObjString* result = takeString(concat.c_str(), concat.length());
     push(Value(result));
+}
+
+void VM::push(Value value)
+{
+    *stackTop = value;
+    stackTop++;
+}
+
+Value VM::pop()
+{
+    stackTop--;
+    return *stackTop;
+}
+
+Value VM::peek(int distance)
+{
+    return stackTop[-1 - distance];
+}
+
+bool VM::call(ObjFunction* function, uint8_t argCount)
+{
+    if (argCount != function->arity)
+    {
+        runtimeError("Expected %d arguments but got %d.", function->arity, argCount);
+        return false;
+    }
+    if (frameCount == FRAMES_MAX)
+    {
+        runtimeError("Stack overflow.");
+        return false;
+    }
+
+    CallFrame* frame = &frames[frameCount++];
+    frame->function = function;
+    frame->ip = &function->chunk.code[0];
+    frame->slots = stackTop - argCount - 1;
+    return true;
+}
+
+bool VM::callValue(Value callee, uint8_t argCount)
+{
+    if (isObject(callee))
+    {
+        switch (getObjType(callee))
+        {
+        case ObjType::FUNCTION:
+            return call(asFunction(callee), argCount);
+        case ObjType::NATIVE:
+        {
+            ObjNative* native = asNative(callee);
+            if (argCount != native->arity)
+            {
+                runtimeError("Expected %d arguments but got %d.", native->arity, argCount);
+                return false;
+            }
+
+            Value result = native->function(argCount, stackTop - argCount);
+            stackTop -= argCount + 1;
+            push(result);
+            return true;
+        }
+        default:
+            break; // Non-callable object type.
+        }
+    }
+    runtimeError("Can only call functions and classes.");
+    return false;
 }

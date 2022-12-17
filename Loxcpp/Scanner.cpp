@@ -4,7 +4,7 @@ const std::string& tokenTypeToString(const TokenType type)
 {
     static std::string values[] = {
         "LEFT_PAREN", "RIGHT_PAREN", "LEFT_BRACE", "RIGHT_BRACE",
-        "COMMA", "DOT", "MINUS", "PLUS", "SEMICOLON", "SLASH", "STAR",
+        "COMMA", "DOT", "MINUS", "PLUS", "COLON", "SEMICOLON", "SLASH", "STAR",
 
         // One or two character tokens.
         "BANG", "BANG_EQUAL",
@@ -19,6 +19,7 @@ const std::string& tokenTypeToString(const TokenType type)
         // Keywords.
         "AND", "CLASS", "ELSE", "FALSE", "FUN", "FOR", "IF", "NIL", "OR",
         "PRINT", "RETURN", "SUPER", "THIS", "TRUE", "VAR", "CONST", "WHILE",
+        "MATCH", "CASE", "BREAK", "CONTINUE",
 
         "ERROR", "EOFILE"
     };

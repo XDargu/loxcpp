@@ -1,13 +1,43 @@
+fun fib(n) {
+  if (n < 2) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+print "Starting";
+
+var start = clock();
+print fib(35);
+print clock() - start;
+
+
 // Fizzbuzz implementation
-for (var i=1; i<20; i=i+1)
+
+/*for (var i=1; i<20; i=i+1)
 {
     if (i % 15 == 0) { print "Fizzbuzz"; }
     else if (i % 5 == 0) { print "Buzz"; }
     else if (i % 3 == 0) { print "Fizz"; }
     else { print i; }
-}
+}*/
+
+
+
+
 
 /*
+
+keywords to parse:
+match, case
+
+grammar for basic pattern:
+
+match ->         "match" "(" expression ")" "{" case* "}"
+case  ->         "case" pattern ":" statement; ";"
+pattern ->       valuePattern
+                 | tuplePattern
+valuePattern ->  expression;
+tuplePattern ->  pattern ("," pattern)*
+
 How pattern matching could work:
 
 match(value)
@@ -81,6 +111,30 @@ var value = match(whatever)
     default: 9;
 };
 
+
+// Ranges:
+
+1.. // 1 to inf
+1..10 // 1 to 10
+1..n // 1 to variable n
+10..1 // 10 to 1, decreasing
+
+// That way we can do for in
+// Maybe a way of getting rid of the old for loop?
+for i in 1..10
+{
+}
+
+// We could also do
+
+for char in "hello"
+    print char
+
+for i in [1,2,3]
+    print i;
+
+// Lazy ranges might be a bit too much?
+for i in (1..)
 
 
 */

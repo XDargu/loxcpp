@@ -9,7 +9,7 @@ enum class TokenType
 {
     // Single-character tokens.
     LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
-    COMMA, DOT, MINUS, PLUS, SEMICOLON, SLASH, STAR,
+    COMMA, DOT, MINUS, PLUS, COLON, SEMICOLON, SLASH, STAR,
 
     // One or two character tokens.
     BANG, BANG_EQUAL,
@@ -24,6 +24,7 @@ enum class TokenType
     // Keywords.
     AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
     PRINT, RETURN, SUPER, THIS, TRUE, VAR, CONST, WHILE,
+    MATCH, CASE, BREAK, CONTINUE,
 
     ERROR, EOFILE
 };
@@ -78,6 +79,7 @@ public:
             case ',': return makeToken(TokenType::COMMA);
             case '.': return makeToken(TokenType::DOT);
             case ';': return makeToken(TokenType::SEMICOLON);
+            case ':': return makeToken(TokenType::COLON);
             case '-': return makeToken(match('-') ? TokenType::MINUS_MINUS : TokenType::MINUS);
             case '+': return makeToken(match('+') ? TokenType::PLUS_PLUS : TokenType::PLUS);
             case '*': return makeToken(TokenType::STAR);
@@ -216,18 +218,39 @@ private:
         switch (source.at(start))
         {
             case 'a': return checkKeyword(1, 2, "nd", TokenType::AND);
+            case 'b': return checkKeyword(1, 4, "reak", TokenType::BREAK);
             case 'c':
                 if (current - start > 1)
                 {
                     switch (source.at(start + 1))
                     {
-                    case 'l': return checkKeyword(2, 3, "ass", TokenType::CLASS);
-                    case 'o': return checkKeyword(2, 3, "nst", TokenType::CONST);
+                        case 'a': return checkKeyword(2, 2, "se", TokenType::CASE);
+                        case 'l': return checkKeyword(2, 3, "ass", TokenType::CLASS);
+                        case 'o': 
+                            if (current - start > 2)
+                            {
+                                switch (source.at(start + 2))
+                                {
+                                    case 'n':
+                                        if (current - start > 3)
+                                        {
+                                            switch (source.at(start + 3))
+                                            {
+                                            case 's': return checkKeyword(4, 1, "t", TokenType::CONST);
+                                            case 't': return checkKeyword(4, 2, "inue", TokenType::CONTINUE);
+                                            }
+                                        }
+                                        break;
+                                }
+                            }
+                            break;
                     }
                 }
+                break;
             case 'e': return checkKeyword(1, 3, "lse", TokenType::ELSE);
             case 'i': return checkKeyword(1, 1, "f", TokenType::IF);
             case 'n': return checkKeyword(1, 2, "il", TokenType::NIL);
+            case 'm': return checkKeyword(1, 4, "atch", TokenType::MATCH);
             case 'o': return checkKeyword(1, 1, "r", TokenType::OR);
             case 'p': return checkKeyword(1, 4, "rint", TokenType::PRINT);
             case 'r': return checkKeyword(1, 5, "eturn", TokenType::RETURN);

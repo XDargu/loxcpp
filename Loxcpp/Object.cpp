@@ -19,7 +19,8 @@ uint32_t hashString(const char* key, int length)
 ObjString* allocateString(const char* chars, int length, uint32_t hash)
 {
     // TODO: the std::string allocates memory in the heap, can be improved!
-    ObjString* string = new ObjString(chars, length); // TODO: This leaks. We will need a garbage collector later
+    ObjString* string = new ObjString(chars, length);
+    VM::getInstance().addObject(string);
     string->hash = hash;
 
     VM::getInstance().stringTable().set(string, Value());
@@ -44,12 +45,42 @@ ObjString* takeString(const char* chars, int length)
     return allocateString(chars, length, hash);
 }
 
+ObjFunction* newFunction()
+{
+    ObjFunction* function = new ObjFunction(0, Chunk(), nullptr);
+    VM::getInstance().addObject(function);
+    return function;
+}
+
+ObjNative* newNative(uint8_t arity, NativeFn function)
+{
+    ObjNative* native = new ObjNative(arity, function);
+    VM::getInstance().addObject(native);
+    return native;
+}
+
+void printFunction(ObjFunction* function)
+{
+    if (function->name == nullptr)
+    {
+        std::cout << "<script>";
+        return;
+    }
+    std::cout << "<fn " << function->name->chars << ">";
+}
+
 void printObject(Value value)
 {
     switch (getObjType(value))
     {
     case ObjType::STRING:
         std::cout << asCString(value);
+        break;
+    case ObjType::NATIVE:
+        printf("<native fn>");
+        break;
+    case ObjType::FUNCTION:
+        printFunction(asFunction(value));
         break;
     }
 }

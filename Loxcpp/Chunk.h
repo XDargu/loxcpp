@@ -25,6 +25,7 @@ enum class OpCode : uint8_t
     OP_DEFINE_GLOBAL_LONG,
     OP_SET_GLOBAL_LONG,
     OP_EQUAL,
+    OP_EQUAL_TOP,
     OP_GREATER,
     OP_LESS,
     OP_NEGATE,
@@ -38,6 +39,7 @@ enum class OpCode : uint8_t
     OP_JUMP,
     OP_JUMP_IF_FALSE,
     OP_LOOP,
+    OP_CALL,
     OP_RETURN,
 
     COUNT
@@ -49,10 +51,12 @@ struct Chunk
 {
     Chunk()
     {
+#ifdef FORCE_LONG_OPS
         for (int i = 0; i < 300; ++i)
         {
             addConstant(Value((double)i));
         }
+#endif
     }
 
     void write(OpCode byte, int line)
@@ -65,29 +69,6 @@ struct Chunk
     {
         code.push_back(byte);
         lines.push_back(line);
-    }
-
-    void writeConstant(Value value, int line)
-    {
-        uint32_t constant = addConstant(value);
-
-        if (constant < 256)
-        {
-            write(OpCode::OP_CONSTANT, line);
-            write(static_cast<uint8_t>(constant), line);
-        }
-        else
-        {
-            write(OpCode::OP_CONSTANT_LONG, line);
-
-            // Convert constant to an array of 4 uint8_t
-            uint8_t* vp = (uint8_t*)&constant;
-
-            write(vp[0], line);
-            write(vp[1], line);
-            write(vp[2], line);
-            write(vp[3], line);
-        }
     }
 
     uint32_t addConstant(Value value)

@@ -10,6 +10,27 @@
 uint8_t OpByte(OpCode opCode) { return static_cast<uint8_t>(opCode); }
 Precedence nextPrecedence(Precedence precedence) { return static_cast<Precedence>(static_cast<int>(precedence) + 1); }
 
+CompilerScope::CompilerScope(FunctionType type, CompilerScope* enclosing, Token* token)
+    : enclosing(enclosing)
+    , function(nullptr)
+    , type(type)
+    , localCount(0)
+    , scopeDepth(0)
+{
+    function = newFunction();
+
+    Local& local = locals[localCount++];
+
+    if (type != FunctionType::SCRIPT)
+    {
+        function->name = copyString(token->start, token->length);
+    }
+
+    local.depth = 0;
+    local.name.start = "";
+    local.name.length = 0;
+}
+
 Compiler::ParseRule::ParseRule(ParseFn prefix, ParseFn infix, Precedence precedence)
     : prefix(prefix)
     , infix(infix)
@@ -39,10 +60,8 @@ void Compiler::debugScanner()
     }
 }
 
-bool Compiler::compile(Chunk* chunk)
+ObjFunction* Compiler::compile()
 {
-    compilingChunk = chunk;
-
     parser.hadError = false;
     parser.panicMode = false;
 
@@ -52,9 +71,8 @@ bool Compiler::compile(Chunk* chunk)
         declaration();
     }
 
-    endCompiler();
-
-    return !parser.hadError;
+    ObjFunction* function = endCompiler();
+    return parser.hadError ? nullptr : function;
 }
 
 bool Compiler::check(TokenType type)
@@ -64,8 +82,7 @@ bool Compiler::check(TokenType type)
 
 Compiler::Compiler(const std::string& source)
     : scanner(source)
-    , compilingChunk(nullptr)
-    , compilerData()
+    , compilerData(FunctionType::SCRIPT, nullptr, nullptr)
     , current(&compilerData)
 {
 }
@@ -152,6 +169,12 @@ size_t Compiler::emitJump(uint8_t instruction)
 
 void Compiler::emitOpWithValue(OpCode shortOp, OpCode longOp, uint32_t value)
 {
+#ifdef FORCE_LONG_OPS
+    emitByte(OpByte(longOp));
+    emitDWord(value);
+    return;
+#endif
+
     if (value > UINT8_MAX)
     {
         emitByte(OpByte(longOp));
@@ -196,15 +219,21 @@ void Compiler::patchJump(size_t offset)
     currentChunk()->code[offset + 1] = vp[1];
 }
 
-void Compiler::endCompiler()
+ObjFunction* Compiler::endCompiler()
 {
-#ifdef DEBUG_PRINT_CODE
-    if (!parser.hadError)
-    {
-        disassembleChunk(*currentChunk(), "code");
-    }
-#endif
     emitReturn();
+    ObjFunction* function = current->function;
+
+    #ifdef DEBUG_PRINT_CODE
+        if (!parser.hadError)
+        {
+            disassembleChunk(*currentChunk(), function->name != nullptr
+                ? function->name->chars.c_str() : "<script>");
+        }
+    #endif
+
+    current = current->enclosing;
+    return function;
 }
 
 void Compiler::binary(bool canAssign)
@@ -228,6 +257,12 @@ void Compiler::binary(bool canAssign)
         case TokenType::PERCENTAGE:    emitByte(OpByte(OpCode::OP_MODULO)); break;
         default: return; // Unreachable.
     }
+}
+
+void Compiler::call(bool canAssign)
+{
+    const uint8_t argCount = argumentList();
+    emitBytes(OpByte(OpCode::OP_CALL), argCount);
 }
 
 void Compiler::literal(bool canAssign)
@@ -462,6 +497,7 @@ void Compiler::declareVariable(bool isConstant)
 
  void Compiler::markInitialized()
  {
+     if(current->scopeDepth == 0) return;
      current->locals[current->localCount - 1].depth = current->scopeDepth;
  }
 
@@ -474,6 +510,25 @@ void Compiler::defineVariable(uint32_t global, bool isConstant)
     }
 
     emitOpWithValue(OpCode::OP_DEFINE_GLOBAL, OpCode::OP_DEFINE_GLOBAL_LONG, global);
+}
+
+uint8_t Compiler::argumentList()
+{
+    uint8_t argCount = 0;
+    if (!check(TokenType::RIGHT_PAREN))
+    {
+        do
+        {
+            expression();
+            if (argCount == 255)
+            {
+                error("Can't have more than 255 arguments.");
+            }
+            argCount++;
+        } while (match(TokenType::COMMA));
+    }
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after arguments.");
+    return argCount;
 }
 
 void Compiler::and_(bool canAssign)
@@ -504,6 +559,45 @@ void Compiler::block()
     }
 
     consume(TokenType::RIGHT_BRACE, "Expect '}' after block.");
+}
+
+void Compiler::function(FunctionType type)
+{
+    CompilerScope compilerScope(type, current, &parser.previous);
+    current = &compilerScope;
+    beginScope();
+
+    consume(TokenType::LEFT_PAREN, "Expect '(' after function name.");
+
+    if (!check(TokenType::RIGHT_PAREN))
+    {
+        do
+        {
+            current->function->arity++;
+            if (current->function->arity > 255)
+            {
+                errorAtCurrent("Can't have more than 255 parameters.");
+            }
+            const uint32_t constant = parseVariable("Expect parameter name.", false);
+            defineVariable(constant, false);
+        } while (match(TokenType::COMMA));
+    }
+
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after parameters.");
+    consume(TokenType::LEFT_BRACE, "Expect '{' before function body.");
+    block();
+
+    ObjFunction* function = endCompiler();
+    const uint32_t constant = makeConstant(Value(function));
+    emitOpWithValue(OpCode::OP_CONSTANT, OpCode::OP_CONSTANT_LONG, constant);
+}
+
+void Compiler::funDeclaration()
+{
+    const uint32_t global = parseVariable("Expect function name.", false);
+    markInitialized();
+    function(FunctionType::FUNCTION);
+    defineVariable(global, false);
 }
 
 void Compiler::beginScope()
@@ -635,6 +729,25 @@ void Compiler::printStatement()
     emitByte(OpByte(OpCode::OP_PRINT));
 }
 
+void Compiler::returnStatement()
+{
+    if (current->type == FunctionType::SCRIPT)
+    {
+        error("Can't return from top-level code.");
+    }
+
+    if (match(TokenType::SEMICOLON))
+    {
+        emitReturn();
+    }
+    else
+    {
+        expression();
+        consume(TokenType::SEMICOLON, "Expect ';' after return value.");
+        emitByte(OpByte(OpCode::OP_RETURN));
+    }
+}
+
 void Compiler::whileStatement()
 {
     const size_t loopStart = currentChunk()->code.size();
@@ -649,6 +762,50 @@ void Compiler::whileStatement()
 
     patchJump(exitJump);
     emitByte(OpByte(OpCode::OP_POP));
+}
+
+void Compiler::matchStatement()
+{
+    const size_t conditionStart = currentChunk()->code.size();
+    consume(TokenType::LEFT_PAREN, "Expect '(' after 'match'.");
+    expression();
+    consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
+    consume(TokenType::LEFT_BRACE, "Expect '{' after 'match expression'.");
+
+    std::vector<size_t> exitJumps;
+
+    // At this point the expresson result is on the top of the stack
+    while (match(TokenType::CASE))
+    {
+        beginScope();
+        pattern();
+
+        emitByte(OpByte(OpCode::OP_EQUAL_TOP));
+        const size_t nextCaseJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+        emitByte(OpByte(OpCode::OP_POP));
+
+        consume(TokenType::COLON, "Expect ':' after pattern.");
+
+        statement();
+        endScope();
+        const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+        exitJumps.push_back(exitJump);
+
+        patchJump(nextCaseJump);
+        emitByte(OpByte(OpCode::OP_POP));
+        endScope();
+    }
+
+    consume(TokenType::RIGHT_BRACE, "Expect '}' after 'match expression cases'.");
+
+    for (const size_t exitJump : exitJumps)
+        patchJump(exitJump);
+
+}
+
+void Compiler::pattern()
+{
+    expression();
 }
 
 void Compiler::synchronize()
@@ -667,6 +824,7 @@ void Compiler::synchronize()
             case TokenType::FOR:
             case TokenType::IF:
             case TokenType::WHILE:
+            case TokenType::MATCH:
             case TokenType::PRINT:
             case TokenType::RETURN:
                 return;
@@ -681,7 +839,11 @@ void Compiler::synchronize()
 
 void Compiler::declaration()
 {
-    if (match(TokenType::VAR))
+    if (match(TokenType::FUN))
+    {
+        funDeclaration();
+    }
+    else if (match(TokenType::VAR))
     {
         varDeclaration(false);
     }
@@ -711,9 +873,17 @@ void Compiler::statement()
     {
         ifStatement();
     }
+    else if (match(TokenType::RETURN))
+    {
+        returnStatement();
+    }
     else if (match(TokenType::WHILE))
     {
         whileStatement();
+    }
+    else if (match(TokenType::MATCH))
+    {
+        matchStatement();
     }
     else if (match(TokenType::LEFT_BRACE))
     {

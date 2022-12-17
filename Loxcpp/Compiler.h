@@ -7,6 +7,7 @@
 
 #include "Chunk.h"
 #include "Scanner.h"
+#include "Object.h"
 
 enum class Precedence : uint8_t
 {
@@ -38,12 +39,19 @@ struct Local
     bool constant = false;
 };
 
+ enum class FunctionType 
+ {
+    FUNCTION,
+    SCRIPT
+};
+
 struct CompilerScope
 {
-    CompilerScope()
-        : localCount(0)
-        , scopeDepth(0)
-    {}
+    CompilerScope(FunctionType type, CompilerScope* enclosing, Token* token);
+
+    CompilerScope* enclosing;
+    ObjFunction* function;
+    FunctionType type;
 
     std::array<Local, UINT8_COUNT> locals;
     int localCount;
@@ -67,7 +75,7 @@ class Compiler
 
     const Rules rules =
     {
-      ParseRule(&Compiler::grouping,  nullptr,             Precedence::NONE),        // LEFT_PAREN    
+      ParseRule(&Compiler::grouping,  &Compiler::call,     Precedence::CALL),        // LEFT_PAREN    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_PAREN   
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // LEFT_BRACE    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_BRACE   
@@ -75,6 +83,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // DOT           
       ParseRule(&Compiler::unary,     &Compiler::binary,   Precedence::TERM),        // MINUS         
       ParseRule(nullptr,              &Compiler::binary,   Precedence::TERM),        // PLUS          
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // COLON....     
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // SEMICOLON     
       ParseRule(nullptr,              &Compiler::binary,   Precedence::FACTOR),      // SLASH         
       ParseRule(nullptr,              &Compiler::binary,   Precedence::FACTOR),      // STAR          
@@ -109,6 +118,10 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // VAR           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CONST         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // WHILE         
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // MATCH         
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CASE          
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // BREAK         
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CONTINUE      
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // ERROR         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // EOFILE        
     };
@@ -118,7 +131,7 @@ public:
     Compiler(const std::string& source);
 
     void debugScanner();
-    bool compile(Chunk* chunk);
+    ObjFunction* compile();
     bool check(TokenType type);
 
     void advance();
@@ -136,9 +149,10 @@ public:
     void emitConstant(Value value);
     void patchJump(size_t offset);
 
-    void endCompiler();
+    ObjFunction* endCompiler();
 
     void binary(bool canAssign);
+    void call(bool canAssign);
     void literal(bool canAssign);
     void grouping(bool canAssign);
     void number(bool canAssign);
@@ -158,10 +172,13 @@ public:
     uint32_t parseVariable(const char* errorMessage, bool isConstant);
     void markInitialized();
     void defineVariable(uint32_t global, bool isConstant);
+    uint8_t argumentList();
     void and_(bool canAssign);
     const ParseRule* getRule(TokenType type) const;
     void expression();
     void block();
+    void function(FunctionType type);
+    void funDeclaration();
     void beginScope();
     void endScope();
     void varDeclaration(bool isConstant);
@@ -169,7 +186,10 @@ public:
     void forStatement();
     void ifStatement();
     void printStatement();
+    void returnStatement();
     void whileStatement();
+    void matchStatement();
+    void pattern();
     void synchronize();
     void declaration();
     void statement();
@@ -178,14 +198,13 @@ public:
     void error(const std::string& message);
     void errorAt(const Token& token, const std::string& message);
 
-    Chunk* currentChunk() { return compilingChunk; }
+    Chunk* currentChunk() { return &current->function->chunk; }
 
     Scanner scanner;
     Parser parser;
     CompilerScope compilerData;
     std::set<uint32_t> constGlobals;
 
-    Chunk* compilingChunk;
     CompilerScope* current;
 };
 

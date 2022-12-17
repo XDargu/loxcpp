@@ -125,6 +125,8 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return constantLongInstruction("OP_SET_GLOBAL_LONG", chunk, offset);
     case OpCode::OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
+    case OpCode::OP_EQUAL_TOP:
+        return simpleInstruction("OP_EQUAL_TOP", offset);
     case OpCode::OP_GREATER:
         return simpleInstruction("OP_GREATER", offset);
     case OpCode::OP_LESS:
@@ -153,10 +155,12 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return jumpInstruction("OP_LOOP", -1, chunk, offset);
     case OpCode::OP_RETURN:
         return simpleInstruction("OP_RETURN", offset);
+    case OpCode::OP_CALL:
+        return byteInstruction("OP_CALL", chunk, offset);
     default:
         std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 31, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 33, "Missing operations in the Debug");
 }
