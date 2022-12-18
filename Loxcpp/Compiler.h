@@ -107,8 +107,8 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CLASS         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // ELSE          
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // FALSE         
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // FOR           
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // FUN           
+      ParseRule(&Compiler::funExpr,   nullptr,             Precedence::NONE),        // FUN           
+      ParseRule(nullptr,              nullptr,             Precedence::RANGE),       // FOR           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // IF            
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // NIL           
       ParseRule(&Compiler::or_,       nullptr,             Precedence::NONE),        // OR            
@@ -165,6 +165,7 @@ public:
     void namedVariable(const Token& name, bool canAssign);
     void variable(bool canAssign);
     void unary(bool canAssign);
+    void funExpr(bool canAssign);
     void parsePrecedence(Precedence precedence);
     uint32_t identifierConstant(const Token& name);
     bool identifiersEqual(const Token& a, const Token& b);

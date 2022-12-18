@@ -1,3 +1,13 @@
+for i in 1..20
+    match i {
+        n if n % 15 == 0: print "FizzBuzz";
+        n if n % 5 == 0: print "Buzz";
+        n if n % 3 == 0: print "Fizz";
+        n: print n;
+    }
+
+/*
+
 fun fib(n)
 {
     if (n < 2) return n;
@@ -22,7 +32,7 @@ for i in 1..amount
 print "**************";
 print "Tests finalized";
 print "Average run: " + (total / amount);
-}
+}*/
 /*
 
 for i in 9..5
@@ -48,16 +58,18 @@ is sintatic sugar for:
 
 // Fizzbuzz implementation
 /*for i in 1..20
-    match(i)
-    {
-        case n if n % 15 == 0: print "FizzBuzz";
-        case n if n % 5 == 0: print "Buzz";
-        case n if n % 3 == 0: print "Fizz";
-        case n: print n;
+    match i {
+        n if n % 15 == 0 => print "FizzBuzz";
+        n if n % 5 == 0 => print "Buzz";
+        n if n % 3 == 0 => print "Fizz";
+        n: print n;
     }
 */
 
 /*
+
+var a = (n) => { return n*n; };
+var a = (n);
 
 keywords to parse:
 match, case

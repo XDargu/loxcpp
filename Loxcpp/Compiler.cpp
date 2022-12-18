@@ -426,6 +426,11 @@ void Compiler::unary(bool canAssign)
     }
 }
 
+void Compiler::funExpr(bool canAssign)
+{
+    function(FunctionType::FUNCTION);
+}
+
 void Compiler::parsePrecedence(Precedence precedence)
 {
     advance();
@@ -676,7 +681,8 @@ void Compiler::varDeclaration(bool isConstant)
     {
         expression();
     }
-    else {
+    else
+    {
         emitByte(OpByte(OpCode::OP_NIL));
     }
     consume(TokenType::SEMICOLON, "Expect ';' after variable declaration.");
@@ -892,15 +898,13 @@ void Compiler::whileStatement()
 void Compiler::matchStatement()
 {
     const size_t conditionStart = currentChunk()->code.size();
-    consume(TokenType::LEFT_PAREN, "Expect '(' after 'match'.");
     expression();
-    consume(TokenType::RIGHT_PAREN, "Expect ')' after expression.");
     consume(TokenType::LEFT_BRACE, "Expect '{' after 'match expression'.");
 
     std::vector<size_t> exitJumps;
 
     // At this point the expresson result is on the top of the stack
-    while (match(TokenType::CASE))
+    while (!check(TokenType::RIGHT_BRACE))
     {
         beginScope();
 
