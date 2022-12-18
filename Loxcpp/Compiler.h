@@ -124,6 +124,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CASE          
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // BREAK         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CONTINUE      
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // IN            
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // ERROR         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // EOFILE        
     };
@@ -149,6 +150,7 @@ public:
     void emitReturn();
     uint32_t makeConstant(Value value);
     void emitConstant(Value value);
+    void emitVariable(const Token& name, bool shouldAssign, bool ignoreConst = false);
     void patchJump(size_t offset);
 
     ObjFunction* endCompiler();
@@ -173,7 +175,7 @@ public:
     void declareVariable(bool isConstant);
     uint32_t parseVariable(const char* errorMessage, bool isConstant);
     void markInitialized();
-    void defineVariable(uint32_t global, bool isConstant);
+    void defineVariable(uint32_t global);
     uint8_t argumentList();
     void and_(bool canAssign);
     const ParseRule* getRule(TokenType type) const;
@@ -186,6 +188,7 @@ public:
     void varDeclaration(bool isConstant);
     void expressionStatement();
     void forStatement();
+    void forInStatement();
     void ifStatement();
     void printStatement();
     void returnStatement();

@@ -19,7 +19,7 @@ const std::string& tokenTypeToString(const TokenType type)
         // Keywords.
         "AND", "CLASS", "ELSE", "FALSE", "FUN", "FOR", "IF", "NIL", "OR",
         "PRINT", "RETURN", "SUPER", "THIS", "TRUE", "VAR", "CONST", "WHILE",
-        "MATCH", "CASE", "BREAK", "CONTINUE",
+        "MATCH", "CASE", "BREAK", "CONTINUE", "IN",
 
         "ERROR", "EOFILE"
     };

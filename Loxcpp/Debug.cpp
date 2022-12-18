@@ -69,6 +69,15 @@ void disassembleChunk(const Chunk& chunk, const char* name)
 {
     std::cout << "==" << name << "==" << std::endl;
 
+    int idx = 0;
+    for (const Value& constant : chunk.constants.values)
+    {
+        std::cout << idx << ": ";
+        printValue(constant);
+        std::cout << std::endl;
+        idx++;
+    }
+
     for (size_t offset = 0; offset < chunk.code.size();)
     {
         offset = disassembleInstruction(chunk, offset);
@@ -143,8 +152,14 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return simpleInstruction("OP_DIVIDE", offset);
     case OpCode::OP_MODULO:
         return simpleInstruction("OP_MODULO", offset);
+    case OpCode::OP_INCREMENT:
+        return simpleInstruction("OP_INCREMENT", offset);
     case OpCode::OP_RANGE:
         return simpleInstruction("OP_RANGE", offset);
+    case OpCode::OP_RANGE_VALUE:
+        return simpleInstruction("OP_RANGE_VALUE", offset);
+    case OpCode::OP_RANGE_IN_BOUNDS:
+        return simpleInstruction("OP_RANGE_IN_BOUNDS", offset);
     case OpCode::OP_NOT:
         return simpleInstruction("OP_NOT", offset);
     case OpCode::OP_PRINT:
@@ -164,5 +179,5 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 34, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 37, "Missing operations in the Debug");
 }

@@ -202,6 +202,56 @@ void Compiler::emitConstant(Value value)
     emitOpWithValue(OpCode::OP_CONSTANT, OpCode::OP_CONSTANT_LONG, constant);
 }
 
+void Compiler::emitVariable(const Token& name, bool shouldAssign, bool ignoreConst)
+{
+    OpCode getOp;
+    OpCode getOpLong;
+    OpCode setOp;
+    OpCode setOpLong;
+    int arg = resolveLocal(*current, name);
+
+    const bool isLocal = arg != -1;
+
+    if (isLocal)
+    {
+        getOp = OpCode::OP_GET_LOCAL;
+        getOpLong = OpCode::OP_GET_LOCAL_LONG;
+        setOp = OpCode::OP_SET_LOCAL;
+        setOpLong = OpCode::OP_SET_LOCAL_LONG;
+    }
+    else
+    {
+        arg = identifierConstant(name);
+        getOp = OpCode::OP_GET_GLOBAL;
+        getOpLong = OpCode::OP_GET_GLOBAL_LONG;
+        setOp = OpCode::OP_SET_GLOBAL;
+        setOpLong = OpCode::OP_SET_GLOBAL_LONG;
+    }
+
+    if (shouldAssign)
+    {
+        if (!ignoreConst)
+        {
+            if (isLocal)
+            {
+                if (isLocalConst(*current, arg))
+                    error("Can't reassign a const variable");
+            }
+            else
+            {
+                if (isGlobalConst(arg))
+                    error("Can't reassign a const variable");
+            }
+        }
+
+        emitOpWithValue(setOp, setOpLong, arg);
+    }
+    else
+    {
+        emitOpWithValue(getOp, getOpLong, arg);
+    }
+}
+
 void Compiler::patchJump(size_t offset)
 {
     // -2 to adjust for the bytecode for the jump offset itself.
@@ -402,7 +452,6 @@ void Compiler::parsePrecedence(Precedence precedence)
     }
 }
 
-// TODO: This atm can return constants of 32 bits! But nothing else is taking that into account
 uint32_t Compiler::identifierConstant(const Token& name)
 {
     return makeConstant(Value(copyString(name.start, name.length)));
@@ -503,7 +552,7 @@ void Compiler::declareVariable(bool isConstant)
      current->locals[current->localCount - 1].depth = current->scopeDepth;
  }
 
-void Compiler::defineVariable(uint32_t global, bool isConstant)
+void Compiler::defineVariable(uint32_t global)
 {
     if (current->scopeDepth > 0)
     {
@@ -581,7 +630,7 @@ void Compiler::function(FunctionType type)
                 errorAtCurrent("Can't have more than 255 parameters.");
             }
             const uint32_t constant = parseVariable("Expect parameter name.", false);
-            defineVariable(constant, false);
+            defineVariable(constant);
         } while (match(TokenType::COMMA));
     }
 
@@ -599,7 +648,7 @@ void Compiler::funDeclaration()
     const uint32_t global = parseVariable("Expect function name.", false);
     markInitialized();
     function(FunctionType::FUNCTION);
-    defineVariable(global, false);
+    defineVariable(global);
 }
 
 void Compiler::beginScope()
@@ -632,7 +681,7 @@ void Compiler::varDeclaration(bool isConstant)
     }
     consume(TokenType::SEMICOLON, "Expect ';' after variable declaration.");
 
-    defineVariable(global, isConstant);
+    defineVariable(global);
 }
 
 void Compiler::expressionStatement()
@@ -644,6 +693,12 @@ void Compiler::expressionStatement()
 
 void Compiler::forStatement()
 {
+    if (!check(TokenType::LEFT_PAREN))
+    {
+        forInStatement();
+        return;
+    }
+
     beginScope();
     consume(TokenType::LEFT_PAREN, "Expect '(' after 'for'.");
 
@@ -698,6 +753,74 @@ void Compiler::forStatement()
         patchJump(exitJump);
         emitByte(OpByte(OpCode::OP_POP)); // Condition.
     }
+
+    endScope();
+}
+
+void Compiler::forInStatement()
+{
+    beginScope();
+
+    const uint32_t localVar = parseVariable("Expected variable after 'for'", true);
+    defineVariable(localVar);
+    emitConstant(Value(0.0)); // Placeholder variable value
+
+    const Token localVarToken = parser.previous;
+
+    // Initialize our hidden local
+    const std::string iterName = "__iter";
+    const Token iterToken(TokenType::VAR, iterName.c_str(), iterName.length(), parser.current.line);
+    addLocal(iterToken, false);
+    // Push the initial iterator value (0)
+    emitConstant(Value(0.0));
+    // Set the iter local to 0
+    emitVariable(iterToken, true);
+
+    consume(TokenType::IN, "Expect 'in' after loop variable.");
+
+    // Initialize our hidden local range var
+    const std::string rangeName = "__range";
+    const Token rangeToken(TokenType::VAR, rangeName.c_str(), rangeName.length(), parser.current.line);
+    addLocal(rangeToken, false);
+    expression(); // This should resolve to a range or a string
+    emitVariable(rangeToken, true); // Set the range value
+
+    // Set value of the local variable before the loop starts
+    namedVariable(iterToken, false); // Load iter
+    namedVariable(rangeToken, false); // Load range
+    emitByte(OpByte(OpCode::OP_RANGE_VALUE));
+    emitVariable(localVarToken, true, true); // Set local variable
+    emitByte(OpByte(OpCode::OP_POP)); // Local variable value
+
+    const size_t loopStart = currentChunk()->code.size();
+
+    // Condition
+    namedVariable(iterToken, false);
+    namedVariable(rangeToken, false); // Load range
+    emitByte(OpByte(OpCode::OP_RANGE_IN_BOUNDS));
+
+    const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
+    emitByte(OpByte(OpCode::OP_POP));
+    statement();
+
+    // After statement happens, increase values
+
+    // Increment variable
+    namedVariable(iterToken, false); // Get iterator value
+    emitByte(OpByte(OpCode::OP_INCREMENT));
+    emitVariable(iterToken, true); // Set iterator value incremented
+    // Iterator already loaded
+    namedVariable(rangeToken, false); // Load range
+
+    // Set the local variable value
+    emitByte(OpByte(OpCode::OP_RANGE_VALUE));
+    emitVariable(localVarToken, true, true); // Set local variable
+    emitByte(OpByte(OpCode::OP_POP)); // Local variable value
+
+    emitLoop(loopStart);
+
+    patchJump(exitJump);
+    emitByte(OpByte(OpCode::OP_POP));
 
     endScope();
 }
@@ -833,8 +956,8 @@ bool Compiler::pattern()
 {
     if (check(TokenType::IDENTIFIER))
     {
-        const uint32_t constant = parseVariable("Expect match variable name.", false);
-        defineVariable(constant, false);
+        const uint32_t constant = parseVariable("Expect match variable name.", true);
+        defineVariable(constant);
         variable(false);
 
         // We need to compare the guard to true

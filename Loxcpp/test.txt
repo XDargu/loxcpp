@@ -1,6 +1,36 @@
-// Fizzbuzz implementation
+for i in 1..20
+    match(i) {
+        case n if n % 15 == 0: print "FizzBuzz";
+        case n if n % 5 == 0: print "Buzz";
+        case n if n % 3 == 0: print "Fizz";
+        case n: print n;
+    }
 
-for (var i=1; i<20; i=i+1)
+/*
+
+for i in 9..5
+    print i
+
+is sintatic sugar for:
+
+{
+    var __iter = 0;
+    var __range = 9..5;
+    var i = rangeVal(__range,__iter);
+
+    while (inRangeBounds(__range,__iter) == true)
+    {
+        print i;
+
+        __iter = __iter + 1;
+        i = rangeVal(__range,__iter);
+    }
+}
+
+*/
+
+// Fizzbuzz implementation
+/*for i in 1..20
 {
     match(i)
     {
@@ -9,8 +39,7 @@ for (var i=1; i<20; i=i+1)
         case n if n % 3 == 0: print "Fizz";
         case n: print n;
     }
-}
-
+}*/
 
 /*
 

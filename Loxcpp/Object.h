@@ -113,6 +113,18 @@ struct ObjRange : Obj
         return value <= min && value >= max; // 5..1
     }
 
+    bool isInBounds(double idx)
+    {
+        if (min < max) return idx >= 0 && idx <= max - min; // 1..5
+        return idx >= 0 && idx <= min - max; // 5..1
+    }
+
+    double getValue(double idx)
+    {
+        if (min < max) return min + idx; // 1..5
+        return min - idx; // 5..1
+    }
+
     double min;
     double max;
 };

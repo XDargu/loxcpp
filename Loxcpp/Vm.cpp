@@ -37,6 +37,33 @@ InterpretResult VM::interpret(const std::string& source)
     {
         return Value((double)clock() / CLOCKS_PER_SEC);
     });
+    defineNative("rangeVal", 2, [](int argCount, Value* args)
+    {
+        if (isRange(args[0]) && isNumber(args[1]))
+        {
+            ObjRange* range = asRange(args[0]);
+            const double idx = asNumber(args[1]);
+
+            if (range->isInBounds(idx))
+            {
+                return Value(range->getValue(idx));
+            }
+        }
+
+        return Value();
+    });
+    defineNative("inRangeBounds", 2, [](int argCount, Value* args)
+    {
+        if (isRange(args[0]) && isNumber(args[1]))
+        {
+            ObjRange* range = asRange(args[0]);
+            const double idx = asNumber(args[1]);
+
+            return Value(range->isInBounds(idx));
+        }
+
+        return Value();
+    });
     defineNative("readInput", 0, [](int argCount, Value* args)
     {
         std::string line;
@@ -336,12 +363,94 @@ InterpretResult VM::run()
                 push(Value(std::fmod(a, b)));
                 break;
             }
+            case OpCode::OP_INCREMENT:
+            {
+                if (!isNumber(peek(0)))
+                {
+                    runtimeError("Can only increment numbers");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                const double a = asNumber(pop());
+                push(Value(a + 1));
+                break;
+            }
             case OpCode::OP_RANGE:
             {
                 if (!validateBinaryOperator()) { return InterpretResult::INTERPRET_RUNTIME_ERROR; }
                 const double max = asNumber(pop());
                 const double min = asNumber(pop());
                 push(Value(newRange(min, max)));
+                break;
+            }
+            case OpCode::OP_RANGE_VALUE:
+            {
+                if (isRange(peek(0)) && isNumber(peek(1)))
+                {
+                    ObjRange* range = asRange(pop());
+                    const double idx = asNumber(pop());
+                    if (range->isInBounds(idx))
+                    {
+                        push(Value(range->getValue(idx)));
+                    }
+                    else
+                    {
+                        push(Value());
+                    }
+                }
+                else if (isString(peek(0)) && isNumber(peek(1)))
+                {
+                    ObjString* string = asString(pop());
+                    const double idx = asNumber(pop());
+                    if (idx >= 0 && idx < string->length)
+                    {
+                        ObjString* character = takeString(&string->chars[idx], 1);
+                        push(Value(character));
+                    }
+                    else
+                    {
+                        push(Value());
+                    }
+                }
+                else
+                {
+                    runtimeError("Invalid range type.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
+            case OpCode::OP_RANGE_IN_BOUNDS:
+            {
+                if (isRange(peek(0)) && isNumber(peek(1)))
+                {
+                    ObjRange* range = asRange(pop());
+                    const double idx = asNumber(pop());
+                    if (range->isInBounds(idx))
+                    {
+                        push(Value(true));
+                    }
+                    else
+                    {
+                        push(Value(false));
+                    }
+                }
+                else if (isString(peek(0)) && isNumber(peek(1)))
+                {
+                    ObjString* string = asString(pop());
+                    const double idx = asNumber(pop());
+                    if (idx >= 0 && idx < string->length)
+                    {
+                        push(Value(true));
+                    }
+                    else
+                    {
+                        push(Value(false));
+                    }
+                }
+                else
+                {
+                    runtimeError("Invalid range type.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
                 break;
             }
             case OpCode::OP_NOT:
@@ -399,7 +508,7 @@ InterpretResult VM::run()
                 break;
             }
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 34, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 37, "Missing operations in the VM");
     }
 }
 

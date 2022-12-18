@@ -24,7 +24,7 @@ enum class TokenType
     // Keywords.
     AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
     PRINT, RETURN, SUPER, THIS, TRUE, VAR, CONST, WHILE,
-    MATCH, CASE, BREAK, CONTINUE,
+    MATCH, CASE, BREAK, CONTINUE, IN,
 
     ERROR, EOFILE
 };
@@ -248,7 +248,16 @@ private:
                 }
                 break;
             case 'e': return checkKeyword(1, 3, "lse", TokenType::ELSE);
-            case 'i': return checkKeyword(1, 1, "f", TokenType::IF);
+            case 'i':
+                if (current - start > 1)
+                {
+                    switch (source.at(start + 1))
+                    {
+                    case 'f': return checkKeyword(2, 0, "", TokenType::IF);
+                    case 'n': return checkKeyword(2, 0, "", TokenType::IN);
+                    }
+                }
+                break;
             case 'n': return checkKeyword(1, 2, "il", TokenType::NIL);
             case 'm': return checkKeyword(1, 4, "atch", TokenType::MATCH);
             case 'o': return checkKeyword(1, 1, "r", TokenType::OR);
