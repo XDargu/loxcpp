@@ -1,11 +1,28 @@
-for i in 1..20
-    match(i) {
-        case n if n % 15 == 0: print "FizzBuzz";
-        case n if n % 5 == 0: print "Buzz";
-        case n if n % 3 == 0: print "Fizz";
-        case n: print n;
-    }
+fun fib(n)
+{
+    if (n < 2) return n;
+    else return fib(n-1) + fib(n-2);
+}
 
+{
+
+var total = 0;
+const amount = 10;
+const depth = 35;
+for i in 1..amount
+{
+    print "Start test " + i;
+    const start = clock();
+    print fib(depth);
+    print clock() - start;
+    total = total + (clock() - start);
+    print "Done test: " + i;
+}
+
+print "**************";
+print "Tests finalized";
+print "Average run: " + (total / amount);
+}
 /*
 
 for i in 9..5
@@ -31,7 +48,6 @@ is sintatic sugar for:
 
 // Fizzbuzz implementation
 /*for i in 1..20
-{
     match(i)
     {
         case n if n % 15 == 0: print "FizzBuzz";
@@ -39,7 +55,7 @@ is sintatic sugar for:
         case n if n % 3 == 0: print "Fizz";
         case n: print n;
     }
-}*/
+*/
 
 /*
 
@@ -81,6 +97,8 @@ true
 // tuples
 1, 2, 5
 5, "hello", false
+
+5
 
 // ranges
 1..10

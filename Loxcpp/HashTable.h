@@ -4,6 +4,8 @@
 #include "Common.h"
 #include "Value.h"
 
+#include <unordered_map>
+
 struct ObjString;
 
 struct Entry
@@ -12,15 +14,37 @@ struct Entry
     Value value = Value();
 };
 
+struct Hasher
+{
+    size_t operator()(ObjString* key) const;
+};
+
+struct TableCpp
+{
+    using EntriesMap = std::unordered_map<uint32_t, Entry>;
+
+    bool set(ObjString* key, const Value& value);
+    bool get(ObjString* key, Value* value);
+    bool remove(ObjString* key);
+    ObjString* findString(const char* chars, int length, uint32_t hash);
+
+private:
+
+    EntriesMap entries;
+
+};
+
 struct Table
 {
     Table();
 
     bool set(ObjString* key, const Value& value);
-    void adjustCapacity(size_t capacity);
     bool get(ObjString* key, Value* value);
     bool remove(ObjString* key);
     ObjString* findString(const char* chars, int length, uint32_t hash);
+
+private:
+    void adjustCapacity(size_t capacity);
 
     void copyTo(Table& to) const;
 

@@ -4,6 +4,38 @@
 
 #define TABLE_MAX_LOAD 0.75
 
+size_t Hasher::operator()(ObjString* key) const
+{
+    return key->hash;
+}
+
+bool TableCpp::set(ObjString* key, const Value& value)
+{
+    auto result = entries.insert({ key->hash, Entry({key, value}) });
+    const bool newEntry = !result.second;
+    return newEntry;
+}
+
+bool TableCpp::get(ObjString* key, Value* value)
+{
+    auto result = entries.find(key->hash);
+    if (result == entries.end()) return false;
+    *value = result->second.value;
+    return true;
+}
+
+bool TableCpp::remove(ObjString* key)
+{
+    const size_t erasedElems = entries.erase(key->hash);
+    return erasedElems > 0;
+}
+
+ObjString* TableCpp::findString(const char* chars, int length, uint32_t hash)
+{
+    auto result = entries.find(hash);
+    return result == entries.end() ? nullptr : result->second.key;
+}
+
 Entry* findEntry(std::vector<Entry>& entries, size_t capacity, const ObjString* key)
 {
     uint32_t index = key->hash % capacity;

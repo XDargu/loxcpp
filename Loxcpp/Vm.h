@@ -32,6 +32,8 @@ class VM
 {
 public:
 
+    using Table = ::TableCpp;
+
     VM();
     VM(VM const&) = delete;
     void operator=(VM const&) = delete;
