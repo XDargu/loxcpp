@@ -38,6 +38,13 @@ struct Local
     Token name;
     int depth = -1;
     bool constant = false;
+    bool isCaptured = false;
+};
+
+struct Upvalue
+{
+    uint8_t index = 0;
+    bool isLocal = false;
 };
 
  enum class FunctionType 
@@ -56,6 +63,7 @@ struct CompilerScope
 
     std::array<Local, UINT8_COUNT> locals;
     int localCount;
+    std::array<Upvalue, UINT8_COUNT> upvalues;
     int scopeDepth;
 };
 
@@ -170,7 +178,10 @@ public:
     uint32_t identifierConstant(const Token& name);
     bool identifiersEqual(const Token& a, const Token& b);
     int resolveLocal(const CompilerScope& compilerScope, const Token& name);
+    int addUpvalue(CompilerScope& compilerScope, uint8_t index, bool isLocal);
+    int resolveUpvalue(CompilerScope& compilerScope, const Token& name);
     bool isLocalConst(const CompilerScope& compilerScope, int index);
+    bool isUpvalueConst(const CompilerScope& compilerScope, int index);
     bool isGlobalConst(uint8_t index);
     void addLocal(const Token& name, bool isConstant);
     void declareVariable(bool isConstant);

@@ -3,6 +3,14 @@
 
 #include "Debug.h"
 #include "Value.h"
+#include "Object.h"
+
+uint32_t longConstant(const Chunk& chunk, size_t offset)
+{
+    const uint8_t* constantStart = &chunk.code[offset + 1];
+    // Interpret the constant as the next 4 elements in the vector
+    return *reinterpret_cast<const uint32_t*>(constantStart);
+}
 
 size_t simpleInstruction(const std::string& name, size_t offset)
 {
@@ -19,9 +27,7 @@ size_t byteInstruction(const char* name, const Chunk& chunk, size_t offset)
 
 size_t dwordInstruction(const char* name, const Chunk& chunk, size_t offset)
 {
-    const uint8_t* slotStart = &chunk.code[offset + 1];
-    // Interpret the constant as the next 4 elements in the vector
-    const uint32_t slot = *reinterpret_cast<const uint32_t*>(slotStart);
+    const uint32_t slot = longConstant(chunk, offset);
 
     std::cout << name << " " << +slot << std::endl;
     return offset + 2;
@@ -54,9 +60,7 @@ size_t constantInstruction(const std::string& name, const Chunk& chunk, size_t o
 
 size_t constantLongInstruction(const std::string& name, const Chunk& chunk, size_t offset)
 {
-    const uint8_t* constantStart = &chunk.code[offset + 1];
-    // Interpret the constant as the next 4 elements in the vector
-    const uint32_t constant = *reinterpret_cast<const uint32_t*>(constantStart);
+    const uint32_t constant = longConstant(chunk, offset);
 
     std::cout << name << "  " << +constant << "  ";
     printValue(chunk.constants.values[constant]);
@@ -132,6 +136,10 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return constantLongInstruction("OP_DEFINE_GLOBAL_LONG", chunk, offset);
     case OpCode::OP_SET_GLOBAL_LONG:
         return constantLongInstruction("OP_SET_GLOBAL_LONG", chunk, offset);
+    case OpCode::OP_GET_UPVALUE:
+        return byteInstruction("OP_GET_UPVALUE", chunk, offset);
+    case OpCode::OP_SET_UPVALUE:
+        return byteInstruction("OP_SET_UPVALUE", chunk, offset);
     case OpCode::OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
     case OpCode::OP_MATCH:
@@ -174,10 +182,55 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return simpleInstruction("OP_RETURN", offset);
     case OpCode::OP_CALL:
         return byteInstruction("OP_CALL", chunk, offset);
+    case OpCode::OP_CLOSURE:
+    {
+        offset++;
+        const uint8_t constant = chunk.code[offset++];
+        //std::cout << +constant << " OP_CLOSURE" << std::endl;
+        printf("%-16s %4d ", "OP_CLOSURE", constant);
+        printValue(chunk.constants.values[constant]);
+        printf("\n");
+
+        ObjFunction* function = asFunction(chunk.constants.values[constant]);
+
+        for (size_t j = 0; j < function->upvalueCount; j++)
+        {
+            const uint8_t isLocal = chunk.code[offset++];
+            const uint8_t index = chunk.code[offset++];
+            printf("%04d      |                     %s %d\n",
+                offset - 2, isLocal ? "local" : "upvalue", index);
+        }
+
+        return offset;
+    }
+    case OpCode::OP_CLOSURE_LONG:
+    {
+        offset++;
+        const uint32_t constant = longConstant(chunk, offset);
+
+        //std::cout << +constant << " OP_CLOSURE" << std::endl;
+        printf("%-16s %4d ", "OP_CLOSURE", constant);
+        printValue(chunk.constants.values[constant]);
+        printf("\n");
+
+        ObjFunction* function = asFunction(chunk.constants.values[constant]);
+
+        for (size_t j = 0; j < function->upvalueCount; j++)
+        {
+            const uint8_t isLocal = chunk.code[offset++];
+            const uint8_t index = chunk.code[offset++];
+            printf("%04d      |                     %s %d\n",
+                offset - 2, isLocal ? "local" : "upvalue", index);
+        }
+
+        return offset;
+    }
+    case OpCode::OP_CLOSE_UPVALUE:
+        return simpleInstruction("OP_CLOSE_UPVALUE", offset);
     default:
         std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 37, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 42, "Missing operations in the Debug");
 }

@@ -1,10 +1,29 @@
-for i in 1..20
-    match i {
-        n if n % 15 == 0: print "FizzBuzz";
-        n if n % 5 == 0: print "Buzz";
-        n if n % 3 == 0: print "Fizz";
-        n: print n;
+
+var globalOne;
+var globalTwo;
+
+fun main() {
+  //for (var a = 1; a <= 2; a = a + 1) {
+
+  for a in 1..2 {
+    fun closure() {
+      print a;
     }
+
+    if (globalOne == nil) {
+      globalOne = closure;
+    } else {
+      globalTwo = closure;
+    }
+  }
+}
+
+main();
+globalOne();
+globalTwo();
+
+
+
 
 /*
 
@@ -88,7 +107,7 @@ How pattern matching could work:
 match(value)
 {
     case "hello": print "Greeting";
-    case "no", "yes": print "Reply";
+    case "no" | "yes": print "Reply";
     case n: print "I don't know";
 }
 

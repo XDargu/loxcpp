@@ -12,8 +12,12 @@ size_t Hasher::operator()(ObjString* key) const
 bool TableCpp::set(ObjString* key, const Value& value)
 {
     auto result = entries.insert({ key->hash, Entry({key, value}) });
-    const bool newEntry = !result.second;
-    return newEntry;
+    if (!result.second)
+    {
+        result.first->second.value = value;
+        return false;
+    }
+    return true;
 }
 
 bool TableCpp::get(ObjString* key, Value* value)

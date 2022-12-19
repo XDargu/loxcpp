@@ -66,6 +66,16 @@ ObjString* takeString(std::string&& chars)
     return string;
 }
 
+ObjUpvalue* newUpvalue(Value* slot)
+{
+    return allocate<ObjUpvalue>(slot);
+}
+
+ObjClosure* newClosure(ObjFunction* function)
+{
+    return allocate<ObjClosure>(function);
+}
+
 ObjFunction* newFunction()
 {
     return allocate<ObjFunction>(0, Chunk(), nullptr);
@@ -106,8 +116,14 @@ void printObject(const Value& value)
     case ObjType::NATIVE:
         std::cout << "<native fn>";
         break;
+    case ObjType::UPVALUE:
+        printf("upvalue");
+        break;
     case ObjType::FUNCTION:
         printFunction(asFunction(value));
+        break;
+    case ObjType::CLOSURE:
+        printFunction(asClosure(value)->function);
         break;
     case ObjType::RANGE:
         printRange(asRange(value));

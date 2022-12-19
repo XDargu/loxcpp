@@ -20,6 +20,7 @@ VM::VM()
     : stackTop(nullptr)
     , frames()
     , frameCount(0)
+    , openUpvalues(nullptr)
 {
     resetStack();
 }
@@ -104,7 +105,10 @@ InterpretResult VM::interpret(const std::string& source)
     });
 
     push(Value(function));
-    call(function, 0);
+    ObjClosure* closure = newClosure(function);
+    pop();
+    push(Value(closure));
+    call(closure, 0);
 
     return run();
 }
@@ -127,8 +131,8 @@ InterpretResult VM::run()
         // Interpret the constant as the next 4 elements in the vector
         return *reinterpret_cast<const uint32_t*>(constantStart);
     };
-    auto readConstant = [&]() -> Value { return frame->function->chunk.constants.values[readByte()]; };
-    auto readLongConstant = [&]() -> Value { return frame->function->chunk.constants.values[readDWord()]; };
+    auto readConstant = [&]() -> Value { return frame->closure->function->chunk.constants.values[readByte()]; };
+    auto readLongConstant = [&]() -> Value { return frame->closure->function->chunk.constants.values[readDWord()]; };
     auto readString = [&]() -> ObjString* { return asString(readConstant()); };
     auto readStringLong = [&]() -> ObjString* { return asString(readLongConstant()); };
 
@@ -143,7 +147,8 @@ InterpretResult VM::run()
             std::cout << " ]";
         }
         std::cout << std::endl;
-        disassembleInstruction(frame->function->chunk, static_cast<size_t>(frame->ip - &frame->function->chunk.code[0]));
+        disassembleInstruction(frame->closure->function->chunk, 
+            static_cast<size_t>(frame->ip - &frame->closure->function->chunk.code[0]));
 #endif
 
         const OpCode instruction = static_cast<OpCode>(readByte());
@@ -199,6 +204,18 @@ InterpretResult VM::run()
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
                 push(value);
+                break;
+            }
+            case OpCode::OP_GET_UPVALUE:
+            {
+                const uint8_t slot = readByte();
+                push(*frame->closure->upvalues[slot]->location);
+                break;
+            }
+            case OpCode::OP_SET_UPVALUE:
+            {
+                const uint8_t slot = readByte();
+                *frame->closure->upvalues[slot]->location = peek(0);
                 break;
             }
             case OpCode::OP_DEFINE_GLOBAL:
@@ -492,9 +509,54 @@ InterpretResult VM::run()
                 frame = &frames[frameCount - 1];
                 break;
             }
+            case OpCode::OP_CLOSURE:
+            {
+                ObjFunction* function = asFunction(readConstant());
+                ObjClosure* closure = newClosure(function);
+                push(Value(closure));
+                for (size_t i = 0; i < closure->upvalues.size(); i++)
+                {
+                    const uint8_t isLocal = readByte();
+                    const uint8_t index = readByte();
+                    if (isLocal)
+                    {
+                        closure->upvalues[i] = captureUpvalue(frame->slots + index);
+                    }
+                    else
+                    {
+                        closure->upvalues[i] = frame->closure->upvalues[index];
+                    }
+                }
+                break;
+            }
+            case OpCode::OP_CLOSURE_LONG:
+            {
+                ObjFunction* function = asFunction(readLongConstant());
+                ObjClosure* closure = newClosure(function);
+                push(Value(closure));
+                for (size_t i = 0; i < closure->upvalues.size(); i++)
+                {
+                    const uint8_t isLocal = readByte();
+                    const uint8_t index = readByte();
+                    if (isLocal)
+                    {
+                        closure->upvalues[i] = captureUpvalue(frame->slots + index);
+                    }
+                    else
+                    {
+                        closure->upvalues[i] = frame->closure->upvalues[index];
+                    }
+                }
+                break;
+            }
+            case OpCode::OP_CLOSE_UPVALUE:
+                closeUpvalues(stackTop - 1);
+                pop();
+                break;
             case OpCode::OP_RETURN:
             {
                 Value result = pop();
+                closeUpvalues(frame->slots);
                 frameCount--;
                 if (frameCount == 0)
                 {
@@ -508,7 +570,7 @@ InterpretResult VM::run()
                 break;
             }
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 37, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 42, "Missing operations in the VM");
     }
 }
 
@@ -529,7 +591,7 @@ inline void VM::runtimeError(const char* format, ...)
     for (int i = frameCount - 1; i >= 0; i--)
     {
         const CallFrame& frame = frames[i];
-        const ObjFunction* function = frame.function;
+        const ObjFunction* function = frame.closure->function;
         const size_t instruction = frame.ip - &function->chunk.code[0] - 1;
 
         std::cerr << "[line " << function->chunk.lines[instruction] << "] in ";
@@ -591,11 +653,11 @@ Value VM::peek(int distance)
     return stackTop[-1 - distance];
 }
 
-bool VM::call(ObjFunction* function, uint8_t argCount)
+bool VM::call(ObjClosure* closure, uint8_t argCount)
 {
-    if (argCount != function->arity)
+    if (argCount != closure->function->arity)
     {
-        runtimeError("Expected %d arguments but got %d.", function->arity, argCount);
+        runtimeError("Expected %d arguments but got %d.", closure->function->arity, argCount);
         return false;
     }
     if (frameCount == FRAMES_MAX)
@@ -605,20 +667,20 @@ bool VM::call(ObjFunction* function, uint8_t argCount)
     }
 
     CallFrame* frame = &frames[frameCount++];
-    frame->function = function;
-    frame->ip = &function->chunk.code[0];
+    frame->closure = closure;
+    frame->ip = &closure->function->chunk.code[0];
     frame->slots = stackTop - argCount - 1;
     return true;
 }
 
-bool VM::callValue(Value callee, uint8_t argCount)
+bool VM::callValue(const Value& callee, uint8_t argCount)
 {
     if (isObject(callee))
     {
         switch (getObjType(callee))
         {
-        case ObjType::FUNCTION:
-            return call(asFunction(callee), argCount);
+        case ObjType::CLOSURE:
+            return call(asClosure(callee), argCount);
         case ObjType::NATIVE:
         {
             ObjNative* native = asNative(callee);
@@ -639,4 +701,46 @@ bool VM::callValue(Value callee, uint8_t argCount)
     }
     runtimeError("Can only call functions and classes.");
     return false;
+}
+
+ObjUpvalue* VM::captureUpvalue(Value* local)
+{
+    ObjUpvalue* prevUpvalue = nullptr;
+    ObjUpvalue* upvalue = openUpvalues;
+    while (upvalue != nullptr && upvalue->location > local)
+    {
+        prevUpvalue = upvalue;
+        upvalue = upvalue->next;
+    }
+
+    if (upvalue != nullptr && upvalue->location == local)
+    {
+        return upvalue;
+    }
+
+    ObjUpvalue* createdUpvalue = newUpvalue(local);
+
+    createdUpvalue->next = upvalue;
+
+    if (prevUpvalue == nullptr)
+    {
+        openUpvalues = createdUpvalue;
+    }
+    else
+    {
+        prevUpvalue->next = createdUpvalue;
+    }
+
+    return createdUpvalue;
+}
+
+void VM::closeUpvalues(Value* last)
+{
+    while (openUpvalues != nullptr && openUpvalues->location >= last)
+    {
+        ObjUpvalue* upvalue = openUpvalues;
+        upvalue->closed = *upvalue->location;
+        upvalue->location = &upvalue->closed;
+        openUpvalues = upvalue->next;
+    }
 }

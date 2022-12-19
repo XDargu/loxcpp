@@ -12,7 +12,9 @@ enum class ObjType
 {
     STRING,
     NATIVE,
+    UPVALUE,
     FUNCTION,
+    CLOSURE,
     RANGE,
 };
 
@@ -58,6 +60,7 @@ struct ObjFunction : Obj
     ObjFunction(int arity, const Chunk& chunk, ObjString* name)
         : Obj(ObjType::FUNCTION)
         , arity(arity)
+        , upvalueCount(0)
         , chunk(chunk)
         , name(name)
     {
@@ -69,8 +72,47 @@ struct ObjFunction : Obj
     }
 
     int arity;
+    int upvalueCount;
     Chunk chunk;
     ObjString* name;
+};
+
+struct ObjUpvalue : Obj
+{
+    ObjUpvalue(Value* location)
+        : Obj(ObjType::UPVALUE)
+        , location(location)
+        , closed()
+        , next(nullptr)
+    {
+        //std::cout << "UPVALUE created: " << this->chars << std::endl;
+    }
+    ~ObjUpvalue()
+    {
+        //std::cout << "UPVALUE destroyed: " << this->chars << std::endl;
+    }
+
+    Value* location;
+    Value closed;
+    ObjUpvalue* next;
+};
+
+struct ObjClosure : Obj
+{
+    ObjClosure(ObjFunction* function)
+        : Obj(ObjType::CLOSURE)
+        , function(function)
+        , upvalues(function->upvalueCount, nullptr)
+    {
+        //std::cout << "CLOSURE created: " << this->chars << std::endl;
+    }
+    ~ObjClosure()
+    {
+        //std::cout << "CLOSURE destroyed: " << this->chars << std::endl;
+    }
+
+    ObjFunction* function;
+    std::vector<ObjUpvalue*> upvalues;
 };
 
 using NativeFn = Value(*)(int argCount, Value* args);
@@ -135,6 +177,7 @@ inline bool isObjType(const Value& value, const ObjType type)
     return isObject(value) && asObject(value)->type == type;
 }
 inline bool isString(const Value& value) { return isObjType(value, ObjType::STRING); }
+inline bool isClosure(const Value& value) { return isObjType(value, ObjType::CLOSURE); }
 inline bool isFunction(const Value& value) { return isObjType(value, ObjType::FUNCTION); }
 inline bool isNative(const Value& value) { return isObjType(value, ObjType::NATIVE); }
 inline bool isRange(const Value& value) { return isObjType(value, ObjType::RANGE); }
@@ -142,6 +185,7 @@ inline bool isRange(const Value& value) { return isObjType(value, ObjType::RANGE
 inline const char* asCString(const Value& value) { return static_cast<ObjString*>(asObject(value))->chars.c_str(); }
 
 inline ObjString* asString(const Value& value) { return static_cast<ObjString*>(asObject(value)); }
+inline ObjClosure* asClosure(const Value& value) { return static_cast<ObjClosure*>(asObject(value)); }
 inline ObjFunction* asFunction(const Value& value) { return static_cast<ObjFunction*>(asObject(value)); }
 inline ObjNative* asNative(const Value& value) { return static_cast<ObjNative*>(asObject(value)); }
 inline ObjRange* asRange(const Value& value) { return static_cast<ObjRange*>(asObject(value)); }
@@ -150,6 +194,8 @@ ObjString* copyString(const char* chars, int length);
 ObjString* takeString(const char* chars, int length);
 ObjString* takeString(std::string&& chars);
 
+ObjUpvalue* newUpvalue(Value* slot);
+ObjClosure* newClosure(ObjFunction* function);
 ObjFunction* newFunction();
 ObjNative* newNative(uint8_t arity, NativeFn function);
 

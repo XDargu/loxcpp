@@ -22,7 +22,7 @@ using InstructonPointer = uint8_t*;
 
 struct CallFrame
 {
-    ObjFunction* function = nullptr;
+    ObjClosure* closure = nullptr;
     InstructonPointer ip = nullptr;
     Value* slots = nullptr;
 };
@@ -91,8 +91,10 @@ private:
     Value pop();
     Value peek(int distance);
 
-    bool call(ObjFunction* function, uint8_t argCount);
-    bool callValue(Value callee, uint8_t argCount);
+    bool call(ObjClosure* closure, uint8_t argCount);
+    bool callValue(const Value& callee, uint8_t argCount);
+    ObjUpvalue* captureUpvalue(Value* local);
+    void closeUpvalues(Value* last);
 
     static constexpr size_t STACK_MAX = 256;
     static constexpr size_t FRAMES_MAX = 255;
@@ -101,6 +103,7 @@ private:
     size_t frameCount;
     std::array<Value, STACK_MAX> stack;
     std::list<Obj*> objects;
+    ObjUpvalue* openUpvalues; // Maybe this could also be a list?
     Value* stackTop;
     Table strings;
     Table globals;

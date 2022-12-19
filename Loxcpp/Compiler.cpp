@@ -29,6 +29,8 @@ CompilerScope::CompilerScope(FunctionType type, CompilerScope* enclosing, Token*
     local.depth = 0;
     local.name.start = "";
     local.name.length = 0;
+    local.constant = false;
+    local.isCaptured = false;
 }
 
 Compiler::ParseRule::ParseRule(ParseFn prefix, ParseFn infix, Precedence precedence)
@@ -212,12 +214,24 @@ void Compiler::emitVariable(const Token& name, bool shouldAssign, bool ignoreCon
 
     const bool isLocal = arg != -1;
 
+    if (!isLocal)
+        arg = resolveUpvalue(*current, name);
+
+    const bool isUpValue = !isLocal && arg != -1;
+
     if (isLocal)
     {
         getOp = OpCode::OP_GET_LOCAL;
         getOpLong = OpCode::OP_GET_LOCAL_LONG;
         setOp = OpCode::OP_SET_LOCAL;
         setOpLong = OpCode::OP_SET_LOCAL_LONG;
+    }
+    else if (isUpValue)
+    {
+        getOp = OpCode::OP_GET_UPVALUE;
+        getOpLong = OpCode::OP_GET_UPVALUE; // No long ops, can't have more than 255 upvalues
+        setOp = OpCode::OP_SET_UPVALUE;
+        setOpLong = OpCode::OP_SET_UPVALUE; // No long ops, can't have more than 255 upvalues
     }
     else
     {
@@ -235,6 +249,11 @@ void Compiler::emitVariable(const Token& name, bool shouldAssign, bool ignoreCon
             if (isLocal)
             {
                 if (isLocalConst(*current, arg))
+                    error("Can't reassign a const variable");
+            }
+            else if (isUpValue)
+            {
+                if (isUpvalueConst(*current, arg))
                     error("Can't reassign a const variable");
             }
             else
@@ -366,6 +385,11 @@ void Compiler::namedVariable(const Token& name, bool canAssign)
     int arg = resolveLocal(*current, name);
 
     const bool isLocal = arg != -1;
+    
+    if (!isLocal)
+        arg = resolveUpvalue(*current, name);
+
+    const bool isUpValue = !isLocal && arg != -1;
 
     if (isLocal)
     {
@@ -373,6 +397,13 @@ void Compiler::namedVariable(const Token& name, bool canAssign)
         getOpLong = OpCode::OP_GET_LOCAL_LONG;
         setOp = OpCode::OP_SET_LOCAL;
         setOpLong = OpCode::OP_SET_LOCAL_LONG;
+    }
+    else if (isUpValue)
+    {
+        getOp = OpCode::OP_GET_UPVALUE;
+        getOpLong = OpCode::OP_GET_UPVALUE; // No long ops, can't have more than 255 upvalues
+        setOp = OpCode::OP_SET_UPVALUE;
+        setOpLong = OpCode::OP_SET_UPVALUE; // No long ops, can't have more than 255 upvalues
     }
     else
     {
@@ -388,6 +419,11 @@ void Compiler::namedVariable(const Token& name, bool canAssign)
         if (isLocal)
         {
             if (isLocalConst(*current, arg))
+                error("Can't reassign a const variable");
+        }
+        else if (isUpValue)
+        {
+            if (isUpvalueConst(*current, arg))
                 error("Can't reassign a const variable");
         }
         else
@@ -487,10 +523,74 @@ int Compiler::resolveLocal(const CompilerScope& compilerScope, const Token& name
     return -1;
 }
 
+int Compiler::addUpvalue(CompilerScope& compilerScope, uint8_t index, bool isLocal)
+{
+    const int upvalueCount = compilerScope.function->upvalueCount;
+
+    for (int i = 0; i < upvalueCount; i++)
+    {
+        const Upvalue* upvalue = &compilerScope.upvalues[i];
+        if (upvalue->index == index && upvalue->isLocal == isLocal)
+        {
+            return i;
+        }
+    }
+
+    if (upvalueCount == UINT8_COUNT)
+    {
+        error("Too many closure variables in function.");
+        return 0;
+    }
+
+    compilerScope.upvalues[upvalueCount].isLocal = isLocal;
+    compilerScope.upvalues[upvalueCount].index = index;
+    return compilerScope.function->upvalueCount++;
+}
+
+int Compiler::resolveUpvalue(CompilerScope& compilerScope, const Token& name)
+{
+    if (compilerScope.enclosing == nullptr) return -1;
+
+    const int local = resolveLocal(*compilerScope.enclosing, name);
+    if (local != -1)
+    {
+        compilerScope.enclosing->locals[local].isCaptured = true;
+        return addUpvalue(compilerScope, static_cast<uint8_t>(local), true);
+    }
+
+    const int upvalue = resolveUpvalue(*compilerScope.enclosing, name);
+    if (upvalue != -1)
+    {
+        return addUpvalue(compilerScope, static_cast<uint8_t>(upvalue), false);
+    }
+
+    return -1;
+}
+
 bool Compiler::isLocalConst(const CompilerScope& compilerScope, int index)
 {
     const Local& local = compilerScope.locals[index];
     return local.constant;
+}
+
+const Local* getUpvalue(const CompilerScope& compilerScope, int index)
+{
+    if (compilerScope.enclosing == nullptr) { return nullptr; }
+
+    const Upvalue& upvalue = compilerScope.upvalues[index];
+
+    if (upvalue.isLocal)
+        return &compilerScope.enclosing->locals[upvalue.index];
+
+    return getUpvalue(*compilerScope.enclosing, upvalue.index);
+}
+
+bool Compiler::isUpvalueConst(const CompilerScope& compilerScope, int index)
+{
+    if (const Local* local = getUpvalue(compilerScope, index))
+        return local->constant;
+
+    return false;
 }
 
 bool Compiler::isGlobalConst(uint8_t index)
@@ -510,6 +610,7 @@ void Compiler::addLocal(const Token& name, bool isConstant)
     local->name = name;
     local->depth = current->scopeDepth;
     local->constant = isConstant;
+    local->isCaptured = false;
 }
 
 void Compiler::declareVariable(bool isConstant)
@@ -645,7 +746,13 @@ void Compiler::function(FunctionType type)
 
     ObjFunction* function = endCompiler();
     const uint32_t constant = makeConstant(Value(function));
-    emitOpWithValue(OpCode::OP_CONSTANT, OpCode::OP_CONSTANT_LONG, constant);
+    emitOpWithValue(OpCode::OP_CLOSURE, OpCode::OP_CLOSURE_LONG, constant);
+
+    for (int i = 0; i < function->upvalueCount; i++)
+    {
+        emitByte(compilerScope.upvalues[i].isLocal ? 1 : 0);
+        emitByte(compilerScope.upvalues[i].index);
+    }
 }
 
 void Compiler::funDeclaration()
@@ -668,7 +775,13 @@ void Compiler::endScope()
     while (current->localCount > 0 &&
         current->locals[current->localCount - 1].depth > current->scopeDepth)
     {
-        emitByte(OpByte(OpCode::OP_POP));
+        if (current->locals[current->localCount - 1].isCaptured)
+        {
+            emitByte(OpByte(OpCode::OP_CLOSE_UPVALUE));
+        }
+        else {
+            emitByte(OpByte(OpCode::OP_POP));
+        }
         current->localCount--;
     }
 }
@@ -791,13 +904,6 @@ void Compiler::forInStatement()
     expression(); // This should resolve to a range or a string
     emitVariable(rangeToken, true); // Set the range value
 
-    // Set value of the local variable before the loop starts
-    namedVariable(iterToken, false); // Load iter
-    namedVariable(rangeToken, false); // Load range
-    emitByte(OpByte(OpCode::OP_RANGE_VALUE));
-    emitVariable(localVarToken, true, true); // Set local variable
-    emitByte(OpByte(OpCode::OP_POP)); // Local variable value
-
     const size_t loopStart = currentChunk()->code.size();
 
     // Condition
@@ -807,21 +913,25 @@ void Compiler::forInStatement()
 
     const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
     emitByte(OpByte(OpCode::OP_POP));
+
+    // Set value from iterator
+    namedVariable(iterToken, false); // Load iterator
+    namedVariable(rangeToken, false); // Load range
+
+    // Set the local variable value before running the statement
+    emitByte(OpByte(OpCode::OP_RANGE_VALUE));
+    emitVariable(localVarToken, true, true); // Set local variable
+    emitByte(OpByte(OpCode::OP_POP)); // Local variable value
+
     statement();
 
     // After statement happens, increase values
 
-    // Increment variable
+    // Increment iterator
     namedVariable(iterToken, false); // Get iterator value
     emitByte(OpByte(OpCode::OP_INCREMENT));
     emitVariable(iterToken, true); // Set iterator value incremented
-    // Iterator already loaded
-    namedVariable(rangeToken, false); // Load range
-
-    // Set the local variable value
-    emitByte(OpByte(OpCode::OP_RANGE_VALUE));
-    emitVariable(localVarToken, true, true); // Set local variable
-    emitByte(OpByte(OpCode::OP_POP)); // Local variable value
+    emitByte(OpByte(OpCode::OP_POP)); // Pop iterator
 
     emitLoop(loopStart);
 
