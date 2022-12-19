@@ -1,11 +1,11 @@
-
-var globalOne;
+/*var globalOne;
 var globalTwo;
 
 fun main() {
-  //for (var a = 1; a <= 2; a = a + 1) {
-
-  for a in 1..2 {
+  //for (var a = 1; a <= 2; a = a + 1) // <- this mutates the a variable, so the program prints 3, 3
+  {
+  for a in 1..2 // <- this creates a local a variable, so the program prints 1, 2
+  {
     fun closure() {
       print a;
     }
@@ -21,8 +21,35 @@ fun main() {
 main();
 globalOne();
 globalTwo();
+*/
 
+var globalOne;
+var globalTwo;
 
+fun main() {
+  for a in 1..2
+  {
+    match a {
+        n: {
+            print n;
+            fun closure()
+            {
+              print a;
+            }
+
+            if (globalOne == nil) {
+              globalOne = closure;
+            } else {
+              globalTwo = closure;
+            }
+        }
+    }
+  }
+}
+
+main();
+globalOne();
+globalTwo();
 
 
 /*

@@ -880,9 +880,7 @@ void Compiler::forInStatement()
 {
     beginScope();
 
-    const uint32_t localVar = parseVariable("Expected variable after 'for'", true);
-    defineVariable(localVar);
-    emitConstant(Value(0.0)); // Placeholder variable value
+    consume(TokenType::IDENTIFIER, "Expected variable after 'for'");
 
     const Token localVarToken = parser.previous;
 
@@ -914,6 +912,11 @@ void Compiler::forInStatement()
     const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
     emitByte(OpByte(OpCode::OP_POP));
 
+    beginScope();
+
+    // create a hidden local variable. Syntactic sugar for var i = rangeValue(__range, __iter);
+    addLocal(localVarToken, true);
+
     // Set value from iterator
     namedVariable(iterToken, false); // Load iterator
     namedVariable(rangeToken, false); // Load range
@@ -921,9 +924,10 @@ void Compiler::forInStatement()
     // Set the local variable value before running the statement
     emitByte(OpByte(OpCode::OP_RANGE_VALUE));
     emitVariable(localVarToken, true, true); // Set local variable
-    emitByte(OpByte(OpCode::OP_POP)); // Local variable value
 
     statement();
+
+    endScope();
 
     // After statement happens, increase values
 
