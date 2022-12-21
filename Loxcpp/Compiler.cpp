@@ -885,8 +885,7 @@ void Compiler::forInStatement()
     const Token localVarToken = parser.previous;
 
     // Initialize our hidden local
-    const std::string iterName = "__iter";
-    const Token iterToken(TokenType::VAR, iterName.c_str(), iterName.length(), parser.current.line);
+    const Token iterToken(TokenType::VAR, "__iter", 6, parser.current.line);
     addLocal(iterToken, false);
     // Push the initial iterator value (0)
     emitConstant(Value(0.0));
@@ -896,8 +895,7 @@ void Compiler::forInStatement()
     consume(TokenType::IN, "Expect 'in' after loop variable.");
 
     // Initialize our hidden local range var
-    const std::string rangeName = "__range";
-    const Token rangeToken(TokenType::VAR, rangeName.c_str(), rangeName.length(), parser.current.line);
+    const Token rangeToken(TokenType::VAR, "__range", 7, parser.current.line);
     addLocal(rangeToken, false);
     expression(); // This should resolve to a range or a string
     emitVariable(rangeToken, true); // Set the range value
@@ -1011,8 +1009,16 @@ void Compiler::whileStatement()
 
 void Compiler::matchStatement()
 {
+    beginScope();
     const size_t conditionStart = currentChunk()->code.size();
+
     expression();
+
+    // Initialize our hidden local
+    const Token matchVarToken(TokenType::VAR, "__match", 6, parser.current.line);
+    addLocal(matchVarToken, true);
+    emitVariable(matchVarToken, true, true);
+
     consume(TokenType::LEFT_BRACE, "Expect '{' after 'match expression'.");
 
     std::vector<size_t> exitJumps;
@@ -1020,18 +1026,15 @@ void Compiler::matchStatement()
     // At this point the expresson result is on the top of the stack
     while (!check(TokenType::RIGHT_BRACE))
     {
+        emitVariable(matchVarToken, false);
+
         beginScope();
 
-        const bool hasIdentifier = pattern();
+        pattern();
 
         emitByte(OpByte(OpCode::OP_MATCH));
         const size_t nextCaseJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
         emitByte(OpByte(OpCode::OP_POP));
-
-        if (hasIdentifier)
-        {
-            emitByte(OpByte(OpCode::OP_POP));
-        }
 
         consume(TokenType::COLON, "Expect ':' after pattern.");
 
@@ -1043,7 +1046,13 @@ void Compiler::matchStatement()
         while (localCount > 0 &&
             current->locals[localCount - 1].depth > (current->scopeDepth - 1))
         {
-            emitByte(OpByte(OpCode::OP_POP));
+            if (current->locals[localCount - 1].isCaptured)
+            {
+                emitByte(OpByte(OpCode::OP_CLOSE_UPVALUE));
+            }
+            else {
+                emitByte(OpByte(OpCode::OP_POP));
+            }
             localCount--;
         }
 
@@ -1053,10 +1062,6 @@ void Compiler::matchStatement()
         patchJump(nextCaseJump);
         emitByte(OpByte(OpCode::OP_POP));
 
-        if (hasIdentifier)
-        {
-            emitByte(OpByte(OpCode::OP_POP));
-        }
         endScope();
     }
 
@@ -1066,17 +1071,25 @@ void Compiler::matchStatement()
     for (const size_t exitJump : exitJumps)
         patchJump(exitJump);
 
-    emitByte(OpByte(OpCode::OP_POP)); // Value is not popped by the match expr
-
+    endScope();
 }
 
-bool Compiler::pattern()
+void Compiler::pattern()
 {
+    // Optional variable pattern
     if (check(TokenType::IDENTIFIER))
     {
-        const uint32_t constant = parseVariable("Expect match variable name.", true);
-        defineVariable(constant);
-        variable(false);
+        const Token patternVarToken = parser.current;
+        
+        consume(TokenType::IDENTIFIER, "Expect pattern identifier'");
+
+        const bool isWildcard = (patternVarToken.start == "_" && patternVarToken.length == 1);
+
+        if (!isWildcard)
+        {
+            addLocal(patternVarToken, true);
+            emitVariable(patternVarToken, true, true);
+        }
 
         // We need to compare the guard to true
         emitByte(OpByte(OpCode::OP_TRUE));
@@ -1092,11 +1105,9 @@ bool Compiler::pattern()
             emitByte(OpByte(OpCode::OP_TRUE));
         }
 
-        return true;
+        return;
     }
-
     expression();
-    return false;
 }
 
 void Compiler::synchronize()

@@ -276,7 +276,7 @@ InterpretResult VM::run()
             case OpCode::OP_MATCH:
             {
                 const Value pattern = pop();
-                const Value value = peek(0);
+                const Value value = pop();
                 if (isRange(pattern) && isNumber(value))
                 {
                     push(Value(asRange(pattern)->contains(asNumber(value))));

@@ -206,7 +206,7 @@ public:
     void returnStatement();
     void whileStatement();
     void matchStatement();
-    bool pattern();
+    void pattern();
     void synchronize();
     void declaration();
     void statement();
