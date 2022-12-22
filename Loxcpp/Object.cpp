@@ -9,6 +9,12 @@ template<class T, class... Args>
 T* allocate(Args&&... args)
 {
     T* obj = new T(std::forward<Args>(args)...);
+#ifdef DEBUG_LOG_GC
+    std::cout << obj << " allocate " << sizeof(*obj) << " for " << objTypeToString(obj->type) << std::endl;
+#endif
+#ifdef DEBUG_STRESS_GC
+    VM::getInstance().collectGarbage();
+#endif
     VM::getInstance().addObject(obj);
     return obj;
 }
@@ -30,8 +36,9 @@ ObjString* allocateString(const char* chars, int length, uint32_t hash)
     // TODO: the std::string allocates memory in the heap out of our control, it can be improved!
     ObjString* string = allocate<ObjString>(chars, length);
     string->hash = hash;
-
+    VM::getInstance().push(Value(string));
     VM::getInstance().stringTable().set(string, Value());
+    VM::getInstance().pop();
     return string;
 }
 

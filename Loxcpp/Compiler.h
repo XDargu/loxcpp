@@ -55,6 +55,7 @@ struct Upvalue
 
 struct CompilerScope
 {
+    CompilerScope();
     CompilerScope(FunctionType type, CompilerScope* enclosing, Token* token);
 
     CompilerScope* enclosing;
@@ -138,8 +139,10 @@ class Compiler
     };
 
 public:
-
-    Compiler(const std::string& source);
+    
+    Compiler();
+    
+    void init(const std::string& source);
 
     void debugScanner();
     ObjFunction* compile();

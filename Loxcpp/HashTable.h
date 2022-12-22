@@ -27,6 +27,8 @@ struct TableCpp
     bool get(ObjString* key, Value* value);
     bool remove(ObjString* key);
     ObjString* findString(const char* chars, int length, uint32_t hash);
+    void mark();
+    void removeWhite();
 
 private:
 
@@ -42,7 +44,8 @@ struct Table
     bool get(ObjString* key, Value* value);
     bool remove(ObjString* key);
     ObjString* findString(const char* chars, int length, uint32_t hash);
-
+    void mark();
+    void removeWhite();
 private:
     void adjustCapacity(size_t capacity);
 

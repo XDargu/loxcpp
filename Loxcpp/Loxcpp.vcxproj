@@ -139,6 +139,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Chunk.cpp" />
     <ClCompile Include="Compiler.cpp" />
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="HashTable.cpp" />
@@ -159,6 +160,9 @@
     <ClInclude Include="Scanner.h" />
     <ClInclude Include="Value.h" />
     <ClInclude Include="Vm.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="Ideas.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

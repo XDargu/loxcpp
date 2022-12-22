@@ -10,6 +10,15 @@
 uint8_t OpByte(OpCode opCode) { return static_cast<uint8_t>(opCode); }
 Precedence nextPrecedence(Precedence precedence) { return static_cast<Precedence>(static_cast<int>(precedence) + 1); }
 
+CompilerScope::CompilerScope()
+    : enclosing(nullptr)
+    , function(nullptr)
+    , type(FunctionType::SCRIPT)
+    , localCount(0)
+    , scopeDepth(0)
+{
+}
+
 CompilerScope::CompilerScope(FunctionType type, CompilerScope* enclosing, Token* token)
     : enclosing(enclosing)
     , function(nullptr)
@@ -82,11 +91,17 @@ bool Compiler::check(TokenType type)
     return parser.current.type == type;
 }
 
-Compiler::Compiler(const std::string& source)
-    : scanner(source)
-    , compilerData(FunctionType::SCRIPT, nullptr, nullptr)
+Compiler::Compiler()
+    : scanner()
+    , compilerData()
     , current(&compilerData)
 {
+}
+
+void Compiler::init(const std::string& source)
+{
+    scanner.init(source);
+    compilerData = CompilerScope(FunctionType::SCRIPT, nullptr, nullptr);
 }
 
 void Compiler::advance()

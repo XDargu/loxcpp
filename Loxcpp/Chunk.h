@@ -58,37 +58,12 @@ typedef std::vector<uint8_t> ChunkInstructions;
 
 struct Chunk
 {
-    Chunk()
-    {
-#ifdef FORCE_LONG_OPS
-        for (int i = 0; i < 300; ++i)
-        {
-            addConstant(Value((double)i));
-        }
-#endif
-    }
+    Chunk();
 
-    void write(OpCode byte, int line)
-    {
-        code.push_back(static_cast<uint8_t>(byte));
-        lines.push_back(line);
-    }
+    void write(OpCode byte, int line);
+    void write(uint8_t byte, int line);
 
-    void write(uint8_t byte, int line)
-    {
-        code.push_back(byte);
-        lines.push_back(line);
-    }
-
-    uint32_t addConstant(Value value)
-    {
-        auto result = std::find(constants.values.begin(), constants.values.end(), value);
-        if (result != constants.values.end())
-            return static_cast<uint32_t>(std::distance(constants.values.begin(), result));
-
-        constants.values.push_back(value);
-        return static_cast<uint32_t>(constants.values.size() - 1);
-    }
+    uint32_t addConstant(Value value);
 
     ChunkInstructions code;
     std::vector<int> lines;

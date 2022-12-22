@@ -18,17 +18,33 @@ enum class ObjType
     RANGE,
 };
 
+inline const char* objTypeToString(const ObjType type)
+{
+    switch (type)
+    {
+    case ObjType::STRING: return "STRING";
+    case ObjType::NATIVE: return "NATIVE";
+    case ObjType::UPVALUE: return "UPVALUE";
+    case ObjType::FUNCTION: return "FUNCTION";
+    case ObjType::CLOSURE: return "CLOSURE";
+    case ObjType::RANGE: return "RANGE";
+    }
+    return "UNKNOWN";
+}
+
 struct Obj
 {
     Obj(ObjType type)
         : type(type)
         , hash(0)
+        , isMarked(false)
     {}
 
     virtual ~Obj() {}
 
     ObjType type;
     uint32_t hash;
+    bool isMarked;
 };
 
 struct ObjString : Obj
@@ -38,18 +54,24 @@ struct ObjString : Obj
         , length(length)
         , chars(chars, length)
     {
-        //std::cout << "STRING created: " << this->chars << std::endl;
+#ifdef DEBUG_OBJECT_LIFETIME
+        std::cout << "STRING created: " << this->chars << std::endl;
+#endif
     }
     ObjString(std::string&& str)
         : Obj(ObjType::STRING)
         , length(str.length())
         , chars(std::move(str))
     {
-        //std::cout << "STRING created: " << this->chars << std::endl;
+#ifdef DEBUG_OBJECT_LIFETIME
+        std::cout << "STRING created: " << this->chars << std::endl;
+#endif
     }
     ~ObjString()
     {
-        //std::cout << "STRING destroyed: " << this->chars << std::endl;
+#ifdef DEBUG_OBJECT_LIFETIME
+        std::cout << "STRING destroyed: " << this->chars << std::endl;
+#endif
     }
     int length;
     std::string chars;
@@ -63,13 +85,7 @@ struct ObjFunction : Obj
         , upvalueCount(0)
         , chunk(chunk)
         , name(name)
-    {
-        //std::cout << "FUNCTION created: " << this->chars << std::endl;
-    }
-    ~ObjFunction()
-    {
-        //std::cout << "FUNCTION destroyed: " << this->chars << std::endl;
-    }
+    {}
 
     int arity;
     int upvalueCount;
@@ -84,13 +100,7 @@ struct ObjUpvalue : Obj
         , location(location)
         , closed()
         , next(nullptr)
-    {
-        //std::cout << "UPVALUE created: " << this->chars << std::endl;
-    }
-    ~ObjUpvalue()
-    {
-        //std::cout << "UPVALUE destroyed: " << this->chars << std::endl;
-    }
+    {}
 
     Value* location;
     Value closed;
@@ -103,13 +113,7 @@ struct ObjClosure : Obj
         : Obj(ObjType::CLOSURE)
         , function(function)
         , upvalues(function->upvalueCount, nullptr)
-    {
-        //std::cout << "CLOSURE created: " << this->chars << std::endl;
-    }
-    ~ObjClosure()
-    {
-        //std::cout << "CLOSURE destroyed: " << this->chars << std::endl;
-    }
+    {}
 
     ObjFunction* function;
     std::vector<ObjUpvalue*> upvalues;
@@ -123,13 +127,7 @@ struct ObjNative : Obj
         : Obj(ObjType::NATIVE)
         , function(function)
         , arity(arity)
-    {
-        //std::cout << "NATIVE created: " << this->chars << std::endl;
-    }
-    ~ObjNative()
-    {
-        //std::cout << "NATIVE destroyed: " << this->chars << std::endl;
-    }
+    {}
 
     NativeFn function;
     uint8_t arity;
@@ -141,13 +139,7 @@ struct ObjRange : Obj
         : Obj(ObjType::RANGE)
         , min(min)
         , max(max)
-    {
-        //std::cout << "RANGE created: " << this->chars << std::endl;
-    }
-    ~ObjRange()
-    {
-        //std::cout << "RANGE destroyed: " << this->chars << std::endl;
-    }
+    {}
 
     bool contains(double value)
     {

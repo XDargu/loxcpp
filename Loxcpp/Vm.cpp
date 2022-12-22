@@ -11,6 +11,8 @@
 #include "Compiler.h"
 #include "Object.h"
 
+constexpr int GC_HEAP_GROW_FACTOR = 2;
+
 bool isFalsey(Value value)
 {
     return isNil(value) || (isBoolean(value) && !asBoolean(value));
@@ -21,88 +23,90 @@ VM::VM()
     , frames()
     , frameCount(0)
     , openUpvalues(nullptr)
+    , compiler()
 {
     resetStack();
 }
 
 InterpretResult VM::interpret(const std::string& source)
 {
-    Compiler compiler(source);
+    if (!nativesDefined)
+    {
+        nativesDefined = true;
+        defineNative("clock", 0, [](int argCount, Value* args)
+        {
+            return Value((double)clock() / CLOCKS_PER_SEC);
+        });
+        defineNative("rangeVal", 2, [](int argCount, Value* args)
+        {
+            if (isRange(args[0]) && isNumber(args[1]))
+            {
+                ObjRange* range = asRange(args[0]);
+                const double idx = asNumber(args[1]);
 
+                if (range->isInBounds(idx))
+                {
+                    return Value(range->getValue(idx));
+                }
+            }
+
+            return Value();
+        });
+        defineNative("inRangeBounds", 2, [](int argCount, Value* args)
+        {
+            if (isRange(args[0]) && isNumber(args[1]))
+            {
+                ObjRange* range = asRange(args[0]);
+                const double idx = asNumber(args[1]);
+
+                return Value(range->isInBounds(idx));
+            }
+
+            return Value();
+        });
+        defineNative("readInput", 0, [](int argCount, Value* args)
+        {
+            std::string line;
+            std::getline(std::cin, line);
+
+            return Value(takeString(line.c_str(), line.length()));
+        });
+        defineNative("readFile", 1, [](int argCount, Value* args)
+        {
+            if (isString(args[0]))
+            {
+                ObjString* fileName = asString(args[0]);
+                std::ifstream fileStream(fileName->chars);
+                std::stringstream buffer;
+                buffer << fileStream.rdbuf();
+                fileStream.close();
+                return Value(takeString(buffer.str().c_str(), buffer.str().length()));
+            }
+
+            return Value(takeString("", 0));
+        });
+        defineNative("writeFile", 2, [](int argCount, Value* args)
+        {
+            if (isString(args[0]) && isString(args[1]))
+            {
+                ObjString* fileName = asString(args[0]);
+                ObjString* content = asString(args[1]);
+
+                std::ofstream fileStream(fileName->chars.c_str());
+                if (fileStream.is_open())
+                {
+                    fileStream.write(content->chars.c_str(), content->chars.length());
+                }
+                fileStream.close();
+            }
+
+            return Value();
+        });
+    }
+
+    compiler.init(source);
     ObjFunction* function = compiler.compile();
     if (function == nullptr) return InterpretResult::INTERPRET_COMPILE_ERROR;
-
-    resetStack();
-
-    defineNative("clock", 0, [](int argCount, Value* args)
-    {
-        return Value((double)clock() / CLOCKS_PER_SEC);
-    });
-    defineNative("rangeVal", 2, [](int argCount, Value* args)
-    {
-        if (isRange(args[0]) && isNumber(args[1]))
-        {
-            ObjRange* range = asRange(args[0]);
-            const double idx = asNumber(args[1]);
-
-            if (range->isInBounds(idx))
-            {
-                return Value(range->getValue(idx));
-            }
-        }
-
-        return Value();
-    });
-    defineNative("inRangeBounds", 2, [](int argCount, Value* args)
-    {
-        if (isRange(args[0]) && isNumber(args[1]))
-        {
-            ObjRange* range = asRange(args[0]);
-            const double idx = asNumber(args[1]);
-
-            return Value(range->isInBounds(idx));
-        }
-
-        return Value();
-    });
-    defineNative("readInput", 0, [](int argCount, Value* args)
-    {
-        std::string line;
-        std::getline(std::cin, line);
-
-        return Value(takeString(line.c_str(), line.length()));
-    });
-    defineNative("readFile", 1, [](int argCount, Value* args)
-    {
-        if (isString(args[0]))
-        {
-            ObjString* fileName = asString(args[0]);
-            std::ifstream fileStream(fileName->chars);
-            std::stringstream buffer;
-            buffer << fileStream.rdbuf();
-            fileStream.close();
-            return Value(takeString(buffer.str().c_str(), buffer.str().length()));
-        }
-
-        return Value(takeString("", 0));
-    });
-    defineNative("writeFile", 2, [](int argCount, Value* args)
-    {
-        if (isString(args[0]) && isString(args[1]))
-        {
-            ObjString* fileName = asString(args[0]);
-            ObjString* content = asString(args[1]);
-
-            std::ofstream fileStream(fileName->chars.c_str());
-            if (fileStream.is_open())
-            {
-                fileStream.write(content->chars.c_str(), content->chars.length());
-            }
-            fileStream.close();
-        }
-
-        return Value();
-    });
 
     push(Value(function));
     ObjClosure* closure = newClosure(function);
@@ -111,6 +115,177 @@ InterpretResult VM::interpret(const std::string& source)
     call(closure, 0);
 
     return run();
+}
+
+void VM::addObject(Obj* obj)
+{
+    bytesAllocated += sizeof(*obj);
+    if (bytesAllocated > nextGC)
+    {
+        collectGarbage();
+    }
+
+    objects.push_back(obj);
+}
+
+void VM::freeAllObjects()
+{
+    for (Obj* obj : objects)
+    {
+        delete obj;
+    }
+
+    objects.clear();
+}
+
+void VM::collectGarbage()
+{
+#ifdef DEBUG_LOG_GC
+    std::cout << "-- gc begin" << std::endl;
+    const size_t before = bytesAllocated;
+#endif
+
+    markRoots();
+    traceReferences();
+    sweep();
+
+    nextGC = bytesAllocated * GC_HEAP_GROW_FACTOR;
+
+#ifdef DEBUG_LOG_GC
+    std::cout << "-- gc end" << std::endl;
+    std::cout << "   collected " << (before - bytesAllocated) <<
+        " bytes (from " << before << " to " << bytesAllocated << ") next at " << nextGC << std::endl;
+#endif
+}
+
+void VM::markRoots()
+{
+    for (Value* slot = &stack[0]; slot < stackTop; slot++)
+    {
+        markValue(*slot);
+    }
+
+    for (int i = 0; i < frameCount; i++)
+    {
+        markObject(frames[i].closure);
+    }
+
+    for (ObjUpvalue* upvalue = openUpvalues;
+        upvalue != nullptr;
+        upvalue = upvalue->next)
+    {
+        markObject(upvalue);
+    }
+
+    globals.mark();
+    markCompilerRoots();
+    strings.removeWhite();
+}
+
+void VM::traceReferences()
+{
+    while (grayNodes.size() > 0)
+    {
+        Obj* object = grayNodes.back();
+        grayNodes.pop_back();
+        blackenObject(object);
+    }
+}
+
+void VM::sweep()
+{
+    ObjList::iterator it = objects.begin();
+    while (it != objects.end())
+    {
+        Obj* object = *it;
+        if (object->isMarked)
+        {
+            object->isMarked = false;
+            ++it;
+        }
+        else
+        {
+            bytesAllocated -= sizeof(*object);
+            delete object;
+            it = objects.erase(it);
+        }
+    }
+}
+
+void VM::markObject(Obj* object)
+{
+    if (object == nullptr) return;
+    if (object->isMarked) return;
+
+#ifdef DEBUG_LOG_GC
+    std::cout << object << " mark ";
+    printValue(Value(object));
+    std::cout << std::endl;
+#endif
+
+    object->isMarked = true;
+
+    grayNodes.push_back(object);
+}
+
+void VM::markValue(Value& value)
+{
+    if (isObject(value)) markObject(asObject(value));
+}
+
+void VM::markArray(ValueArray& valArray)
+{
+    for (int i = 0; i < valArray.values.size(); i++)
+    {
+        markValue(valArray.values[i]);
+    }
+}
+
+void VM::markCompilerRoots()
+{
+    for (const CompilerScope* compilerScope = compiler.current;
+        compilerScope != nullptr;
+        compilerScope = compilerScope->enclosing)
+    {
+        markObject(compilerScope->function);
+    }
+}
+
+void VM::blackenObject(Obj* object)
+{
+#ifdef DEBUG_LOG_GC
+    std::cout << object << " blacken ";
+    printValue(Value(object));
+    std::cout << std::endl;
+#endif
+
+    switch (object->type) {
+    case ObjType::NATIVE:
+    case ObjType::STRING:
+    case ObjType::RANGE:
+        break;
+    case ObjType::UPVALUE:
+        markValue((static_cast<ObjUpvalue*>(object)->closed));
+        break;
+    case ObjType::FUNCTION:
+    {
+        ObjFunction* function = static_cast<ObjFunction*>(object);
+        markObject(function->name);
+        markArray(function->chunk.constants);
+        break;
+    }
+    case ObjType::CLOSURE:
+    {
+        ObjClosure* closure = static_cast<ObjClosure*>(object);
+
+        markObject(closure->function);
+        for (int i = 0; i < closure->upvalues.size(); i++)
+        {
+            markObject(closure->upvalues[i]);
+        }
+        break;
+    }
+    }
 }
 
 InterpretResult VM::run()
@@ -326,19 +501,25 @@ InterpretResult VM::run()
                 }
                 else if (isString(peek(0)))
                 {
-                    ObjString* a = asString(pop());
-                    ObjString* val = valueAsString(pop());  // TODO: This allocates memory!
+                    ObjString* a = asString(peek(0));
+                    ObjString* val = valueAsString(peek(1));  // TODO: This allocates memory!
                     
                     ObjString* result = ::concatenate(val, a);
+
+                    pop();
+                    pop();
                     push(Value(result));
 
                 }
                 else if (isString(peek(1)))
                 {
-                    ObjString* val = valueAsString(pop()); // TODO: This allocates memory!
-                    ObjString* b = asString(pop());
+                    ObjString* val = valueAsString(peek(0)); // TODO: This allocates memory!
+                    ObjString* b = asString(peek(1));
 
                     ObjString* result = ::concatenate(b, val);
+
+                    pop();
+                    pop();
                     push(Value(result));
                 }
                 else
@@ -403,28 +584,37 @@ InterpretResult VM::run()
             {
                 if (isRange(peek(0)) && isNumber(peek(1)))
                 {
-                    ObjRange* range = asRange(pop());
-                    const double idx = asNumber(pop());
+                    ObjRange* range = asRange(peek(0));
+                    const double idx = asNumber(peek(1));
                     if (range->isInBounds(idx))
                     {
+                        pop();
+                        pop();
                         push(Value(range->getValue(idx)));
                     }
                     else
                     {
+                        pop();
+                        pop();
                         push(Value());
                     }
                 }
                 else if (isString(peek(0)) && isNumber(peek(1)))
                 {
-                    ObjString* string = asString(pop());
-                    const double idx = asNumber(pop());
+                    ObjString* string = asString(peek(0));
+                    const double idx = asNumber(peek(1));
+
                     if (idx >= 0 && idx < string->length)
                     {
                         ObjString* character = takeString(&string->chars[idx], 1);
+                        pop();
+                        pop();
                         push(Value(character));
                     }
                     else
                     {
+                        pop();
+                        pop();
                         push(Value());
                     }
                 }
@@ -452,14 +642,18 @@ InterpretResult VM::run()
                 }
                 else if (isString(peek(0)) && isNumber(peek(1)))
                 {
-                    ObjString* string = asString(pop());
-                    const double idx = asNumber(pop());
+                    ObjString* string = asString(peek(0));
+                    const double idx = asNumber(peek(1));
                     if (idx >= 0 && idx < string->length)
                     {
+                        pop();
+                        pop();
                         push(Value(true));
                     }
                     else
                     {
+                        pop();
+                        pop();
                         push(Value(false));
                     }
                 }
@@ -630,10 +824,14 @@ bool VM::validateBinaryOperator()
 
 void VM::concatenate()
 {
-    ObjString* b = asString(pop());
-    ObjString* a = asString(pop());
+    ObjString* b = asString(peek(0));
+    ObjString* a = asString(peek(1));
 
-    push(Value(::concatenate(a, b)));
+    ObjString* concat = ::concatenate(a, b);
+
+    pop();
+    pop();
+    push(Value(concat));
 }
 
 void VM::push(Value value)

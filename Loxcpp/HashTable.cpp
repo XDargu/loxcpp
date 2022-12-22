@@ -1,6 +1,7 @@
 #include "HashTable.h"
 
 #include "Object.h"
+#include "Vm.h"
 
 #define TABLE_MAX_LOAD 0.75
 
@@ -38,6 +39,33 @@ ObjString* TableCpp::findString(const char* chars, int length, uint32_t hash)
 {
     auto result = entries.find(hash);
     return result == entries.end() ? nullptr : result->second.key;
+}
+
+void TableCpp::mark()
+{
+    VM& vm = VM::getInstance();
+    for (EntriesMap::value_type& pair : entries)
+    {
+        Entry& entry = pair.second;
+        vm.markObject(entry.key);
+        vm.markValue(entry.value);
+    }
+}
+
+void TableCpp::removeWhite()
+{
+    EntriesMap::iterator it = entries.begin();
+    while (it != entries.end())
+    {
+        Entry& entry = it->second;
+        if (entry.key != nullptr && !entry.key->isMarked)
+        {
+            it = entries.erase(it);
+        }
+        else {
+            ++it;
+        }
+    }
 }
 
 Entry* findEntry(std::vector<Entry>& entries, size_t capacity, const ObjString* key)
@@ -167,6 +195,29 @@ ObjString* Table::findString(const char* chars, int length, uint32_t hash)
         }
 
         index = (index + 1) % capacity;
+    }
+}
+
+void Table::mark()
+{
+    VM& vm = VM::getInstance();
+    for (int i = 0; i < capacity; i++)
+    {
+        Entry& entry = entries[i];
+        vm.markObject(entry.key);
+        vm.markValue(entry.value);
+    }
+}
+
+inline void Table::removeWhite()
+{
+    for (int i = 0; i < capacity; i++)
+    {
+        Entry* entry = &entries[i];
+        if (entry->key != NULL && !entry->key->isMarked)
+        {
+            remove(entry->key);
+        }
     }
 }
 

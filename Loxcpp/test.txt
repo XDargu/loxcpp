@@ -1,3 +1,18 @@
+
+/*for i in 100..103
+{
+    print "START" + i;
+    match (i)
+    {
+        101: print "Number 101";
+        n if n == 102: print "Number 102";
+        _: print "Any";
+    }
+    print "END" + i;
+}
+
+var a = "Hello";*/
+
 /*var globalOne;
 var globalTwo;
 
@@ -23,6 +38,7 @@ globalOne();
 globalTwo();
 */
 
+/*
 var globalOne;
 var globalTwo;
 
@@ -50,7 +66,7 @@ fun main() {
 main();
 globalOne();
 globalTwo();
-
+*/
 
 /*
 

@@ -48,9 +48,11 @@ class Scanner
 {
 public:
 
-    Scanner(const std::string& source)
-        : source(source)
+    Scanner() = default;
+
+    void init(const std::string& sourceText)
     {
+        source = sourceText;
     }
 
     Token scanToken()

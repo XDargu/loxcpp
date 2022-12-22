@@ -10,6 +10,9 @@
 #include "Value.h"
 #include "HashTable.h"
 #include "Object.h"
+#include "Compiler.h"
+
+class Compiler;
 
 enum class InterpretResult 
 {
@@ -33,6 +36,7 @@ class VM
 public:
 
     using Table = ::TableCpp;
+    using ObjList = std::list<Obj*>;
 
     VM();
     VM(VM const&) = delete;
@@ -53,28 +57,22 @@ public:
 
     Table& stringTable() { return strings; }
 
-    void addObject(Obj* obj)
-    {
-        objects.push_back(obj);
-    }
+    // Memory. TODO: Separate from the VM
+    void addObject(Obj* obj);
+    void freeAllObjects();
+    void collectGarbage();
+    void markRoots();
+    void traceReferences();
+    void sweep();
+    void markObject(Obj* object);
+    void markValue(Value& value);
+    void markArray(ValueArray& valArray);
+    void markCompilerRoots();
+    void blackenObject(Obj* object);
 
-    void freeObject(Obj* obj)
-    {
-        // Very inefficient way of freeing objects
-        // Improvement: each object points to the next one, no need for list in VM
-        objects.remove(obj);
-        delete obj;
-    }
-
-    void freeAllObjects()
-    {
-        for (Obj* obj : objects)
-        {
-            delete obj;
-        }
-
-        objects.clear();
-    }
+    void push(Value value);
+    Value pop();
+    Value peek(int distance);
 
 private:
 
@@ -87,10 +85,6 @@ private:
 
     void concatenate();
 
-    void push(Value value);
-    Value pop();
-    Value peek(int distance);
-
     bool call(ObjClosure* closure, uint8_t argCount);
     bool callValue(const Value& callee, uint8_t argCount);
     ObjUpvalue* captureUpvalue(Value* local);
@@ -102,11 +96,17 @@ private:
     std::array<CallFrame, FRAMES_MAX> frames;
     size_t frameCount;
     std::array<Value, STACK_MAX> stack;
-    std::list<Obj*> objects;
+    ObjList objects;
     ObjUpvalue* openUpvalues; // Maybe this could also be a list?
     Value* stackTop;
     Table strings;
     Table globals;
+    Compiler compiler;
+    bool nativesDefined = false;
+
+    std::vector<Obj*> grayNodes;
+    size_t bytesAllocated = 0;
+    size_t nextGC = 256;
 };
 
 #endif
