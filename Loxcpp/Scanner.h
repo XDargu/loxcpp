@@ -53,6 +53,9 @@ public:
     void init(const std::string& sourceText)
     {
         source = sourceText;
+        start = 0;
+        current = 0;
+        line = 1;
     }
 
     Token scanToken()

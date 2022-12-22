@@ -71,8 +71,13 @@ void Compiler::debugScanner()
     }
 }
 
-ObjFunction* Compiler::compile()
+ObjFunction* Compiler::compile(const std::string& source)
 {
+    scanner.init(source);
+
+    compilerData = CompilerScope(FunctionType::SCRIPT, nullptr, nullptr);
+    current = &compilerData;
+
     parser.hadError = false;
     parser.panicMode = false;
 
@@ -96,12 +101,6 @@ Compiler::Compiler()
     , compilerData()
     , current(&compilerData)
 {
-}
-
-void Compiler::init(const std::string& source)
-{
-    scanner.init(source);
-    compilerData = CompilerScope(FunctionType::SCRIPT, nullptr, nullptr);
 }
 
 void Compiler::advance()
@@ -315,7 +314,7 @@ ObjFunction* Compiler::endCompiler()
                 ? function->name->chars.c_str() : "<script>");
         }
     #endif
-
+    
     current = current->enclosing;
     return function;
 }

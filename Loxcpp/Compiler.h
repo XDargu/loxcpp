@@ -141,11 +141,9 @@ class Compiler
 public:
     
     Compiler();
-    
-    void init(const std::string& source);
 
     void debugScanner();
-    ObjFunction* compile();
+    ObjFunction* compile(const std::string& source);
     bool check(TokenType type);
 
     void advance();

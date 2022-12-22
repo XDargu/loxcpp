@@ -1,3 +1,5 @@
+var a = 20;
+print "hello " + a;
 
 /*for i in 100..103
 {

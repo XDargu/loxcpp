@@ -104,8 +104,7 @@ InterpretResult VM::interpret(const std::string& source)
         });
     }
 
-    compiler.init(source);
-    ObjFunction* function = compiler.compile();
+    ObjFunction* function = compiler.compile(source);
     if (function == nullptr) return InterpretResult::INTERPRET_COMPILE_ERROR;
 
     push(Value(function));
@@ -130,12 +129,22 @@ void VM::addObject(Obj* obj)
 
 void VM::freeAllObjects()
 {
+#ifdef DEBUG_LOG_GC
+    const size_t before = bytesAllocated;
+#endif
+
     for (Obj* obj : objects)
     {
+        bytesAllocated -= sizeof(*obj);
         delete obj;
     }
 
     objects.clear();
+
+#ifdef DEBUG_LOG_GC
+    std::cout << "   collected " << (before - bytesAllocated) <<
+        " bytes (from " << before << " to " << bytesAllocated << ") next at " << nextGC << std::endl;
+#endif
 }
 
 void VM::collectGarbage()
@@ -754,7 +763,7 @@ InterpretResult VM::run()
                 frameCount--;
                 if (frameCount == 0)
                 {
-                    pop();
+                    //pop();
                     return InterpretResult::INTERPRET_OK;
                 }
 
