@@ -1,5 +1,10 @@
-var a = 20;
-print "hello " + a;
+class Pair {}
+
+var pair = Pair();
+pair.first = 1;
+pair.second = 2;
+print pair.first + pair.second; // 3.
+print pair.a;
 
 /*for i in 100..103
 {

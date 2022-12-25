@@ -90,7 +90,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // LEFT_BRACE    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_BRACE   
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // COMMA         
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // DOT           
+      ParseRule(nullptr,              &Compiler::dot,      Precedence::CALL),        // DOT           
       ParseRule(&Compiler::unary,     &Compiler::binary,   Precedence::TERM),        // MINUS         
       ParseRule(nullptr,              &Compiler::binary,   Precedence::TERM),        // PLUS          
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // COLON....     
@@ -166,6 +166,7 @@ public:
 
     void binary(bool canAssign);
     void call(bool canAssign);
+    void dot(bool canAssign);
     void literal(bool canAssign);
     void grouping(bool canAssign);
     void number(bool canAssign);
@@ -195,6 +196,7 @@ public:
     void expression();
     void block();
     void function(FunctionType type);
+    void classDeclaration();
     void funDeclaration();
     void beginScope();
     void endScope();

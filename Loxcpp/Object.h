@@ -7,15 +7,20 @@
 #include "Common.h"
 #include "Chunk.h"
 #include "Value.h"
+#include "HashTable.h"
 
 enum class ObjType
 {
-    STRING,
+    STRING = 0,
     NATIVE,
     UPVALUE,
     FUNCTION,
     CLOSURE,
+    CLASS,
+    INSTANCE,
     RANGE,
+
+    COUNT
 };
 
 inline const char* objTypeToString(const ObjType type)
@@ -27,9 +32,12 @@ inline const char* objTypeToString(const ObjType type)
     case ObjType::UPVALUE: return "UPVALUE";
     case ObjType::FUNCTION: return "FUNCTION";
     case ObjType::CLOSURE: return "CLOSURE";
+    case ObjType::CLASS: return "CLASS";
+    case ObjType::INSTANCE: return "INSTANCE";
     case ObjType::RANGE: return "RANGE";
     }
     return "UNKNOWN";
+    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
 }
 
 struct Obj
@@ -119,6 +127,27 @@ struct ObjClosure : Obj
     std::vector<ObjUpvalue*> upvalues;
 };
 
+struct ObjClass : Obj
+{
+    ObjClass(ObjString* name)
+        : Obj(ObjType::CLASS)
+        , name(name)
+    {}
+
+    ObjString* name;
+};
+
+struct ObjInstance : Obj
+{
+    ObjInstance(ObjClass* klass)
+        : Obj(ObjType::INSTANCE)
+        , klass(klass)
+    {}
+
+    ObjClass* klass;
+    Table fields;
+};
+
 using NativeFn = Value(*)(int argCount, Value* args);
 
 struct ObjNative : Obj
@@ -169,6 +198,8 @@ inline bool isObjType(const Value& value, const ObjType type)
     return isObject(value) && asObject(value)->type == type;
 }
 inline bool isString(const Value& value) { return isObjType(value, ObjType::STRING); }
+inline bool isInstance(const Value& value) { return isObjType(value, ObjType::INSTANCE); }
+inline bool isClass(const Value& value) { return isObjType(value, ObjType::CLASS); }
 inline bool isClosure(const Value& value) { return isObjType(value, ObjType::CLOSURE); }
 inline bool isFunction(const Value& value) { return isObjType(value, ObjType::FUNCTION); }
 inline bool isNative(const Value& value) { return isObjType(value, ObjType::NATIVE); }
@@ -177,6 +208,8 @@ inline bool isRange(const Value& value) { return isObjType(value, ObjType::RANGE
 inline const char* asCString(const Value& value) { return static_cast<ObjString*>(asObject(value))->chars.c_str(); }
 
 inline ObjString* asString(const Value& value) { return static_cast<ObjString*>(asObject(value)); }
+inline ObjInstance* asInstance(const Value& value) { return static_cast<ObjInstance*>(asObject(value)); }
+inline ObjClass* asClass(const Value& value) { return static_cast<ObjClass*>(asObject(value)); }
 inline ObjClosure* asClosure(const Value& value) { return static_cast<ObjClosure*>(asObject(value)); }
 inline ObjFunction* asFunction(const Value& value) { return static_cast<ObjFunction*>(asObject(value)); }
 inline ObjNative* asNative(const Value& value) { return static_cast<ObjNative*>(asObject(value)); }
@@ -187,6 +220,8 @@ ObjString* takeString(const char* chars, int length);
 ObjString* takeString(std::string&& chars);
 
 ObjUpvalue* newUpvalue(Value* slot);
+ObjInstance* newInstance(ObjClass* klass);
+ObjClass* newClass(ObjString* name);
 ObjClosure* newClosure(ObjFunction* function);
 ObjFunction* newFunction();
 ObjNative* newNative(uint8_t arity, NativeFn function);

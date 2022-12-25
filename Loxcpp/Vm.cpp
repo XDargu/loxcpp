@@ -294,7 +294,22 @@ void VM::blackenObject(Obj* object)
         }
         break;
     }
+    case ObjType::CLASS:
+    {
+        ObjClass* klass = static_cast<ObjClass*>(object);
+        markObject(klass->name);
+        break;
     }
+    case ObjType::INSTANCE:
+    {
+        ObjInstance* instance = static_cast<ObjInstance*>(object);
+        markObject(instance->klass);
+        instance->fields.mark();
+        break;
+    }
+    }
+
+    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
 }
 
 InterpretResult VM::run()
@@ -448,6 +463,82 @@ InterpretResult VM::run()
                     runtimeError("Undefined variable '%s'.", name->chars.c_str());
                     return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
+                break;
+            }
+            case OpCode::OP_GET_PROPERTY:
+            {
+                if (!isInstance(peek(0)))
+                {
+                    runtimeError("Only instances have properties.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* instance = asInstance(peek(0));
+                ObjString* name = readString();
+
+                pop(); // Instance.
+
+                Value value;
+                if (instance->fields.get(name, &value))
+                {
+                    push(value);
+                    break;
+                }
+
+                push(Value()); // Nil
+                break;
+            }
+            case OpCode::OP_GET_PROPERTY_LONG:
+            {
+                if (!isInstance(peek(0)))
+                {
+                    runtimeError("Only instances have properties.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* instance = asInstance(peek(0));
+                ObjString* name = readStringLong();
+
+                pop(); // Instance.
+
+                Value value;
+                if (instance->fields.get(name, &value))
+                {
+                    push(value);
+                    break;
+                }
+
+                push(Value()); // Nil
+                break;
+            }
+            case OpCode::OP_SET_PROPERTY:
+            {
+                if (!isInstance(peek(1)))
+                {
+                    runtimeError("Only instances have fields.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* instance = asInstance(peek(1));
+                instance->fields.set(readString(), peek(0));
+                const Value value = pop();
+                pop();
+                push(value);
+                break;
+            }
+            case OpCode::OP_SET_PROPERTY_LONG:
+            {
+                if (!isInstance(peek(1)))
+                {
+                    runtimeError("Only instances have fields.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* instance = asInstance(peek(1));
+                instance->fields.set(readStringLong(), peek(0));
+                const Value value = pop();
+                pop();
+                push(value);
                 break;
             }
             case OpCode::OP_EQUAL:
@@ -758,7 +849,7 @@ InterpretResult VM::run()
                 break;
             case OpCode::OP_RETURN:
             {
-                Value result = pop();
+                const Value result = pop();
                 closeUpvalues(frame->slots);
                 frameCount--;
                 if (frameCount == 0)
@@ -772,8 +863,14 @@ InterpretResult VM::run()
                 frame = &frames[frameCount - 1];
                 break;
             }
+            case OpCode::OP_CLASS:
+                push(Value(newClass(readString())));
+                break;
+            case OpCode::OP_CLASS_LONG:
+                push(Value(newClass(readStringLong())));
+                break;
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 42, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 48, "Missing operations in the VM");
     }
 }
 
@@ -886,6 +983,12 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
     {
         switch (getObjType(callee))
         {
+        case ObjType::CLASS:
+        {
+            ObjClass* klass = asClass(callee);
+            stackTop[-argCount - 1] = Value(newInstance(klass));
+            return true;
+        }
         case ObjType::CLOSURE:
             return call(asClosure(callee), argCount);
         case ObjType::NATIVE:

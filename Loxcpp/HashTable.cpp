@@ -101,13 +101,13 @@ Entry* findEntry(std::vector<Entry>& entries, size_t capacity, const ObjString* 
     return nullptr;
 }
 
-Table::Table()
+TableLox::TableLox()
     : count(0)
     , capacity(0)
     , entries()
 {}
 
-bool Table::set(ObjString* key, const Value& value)
+bool TableLox::set(ObjString* key, const Value& value)
 {
     if (count + 1 > capacity * TABLE_MAX_LOAD)
     {
@@ -124,7 +124,7 @@ bool Table::set(ObjString* key, const Value& value)
     return isNewKey;
 }
 
-void Table::adjustCapacity(size_t nextCapacity)
+void TableLox::adjustCapacity(size_t nextCapacity)
 {
     // Instead of resizing the vector, we make a new one and swap with the old one
     // The vector would have to reallocate with the resizing anyway, and that way it's
@@ -148,7 +148,7 @@ void Table::adjustCapacity(size_t nextCapacity)
     capacity = nextCapacity;
 }
 
-bool Table::get(ObjString* key, Value* value)
+bool TableLox::get(ObjString* key, Value* value)
 {
     if (count == 0) return false;
 
@@ -159,7 +159,7 @@ bool Table::get(ObjString* key, Value* value)
     return true;
 }
 
-bool Table::remove(ObjString* key)
+bool TableLox::remove(ObjString* key)
 {
     if (count == 0) return false;
 
@@ -173,7 +173,7 @@ bool Table::remove(ObjString* key)
     return true;
 }
 
-ObjString* Table::findString(const char* chars, int length, uint32_t hash)
+ObjString* TableLox::findString(const char* chars, int length, uint32_t hash)
 {
     if (count == 0) return nullptr;
 
@@ -198,7 +198,7 @@ ObjString* Table::findString(const char* chars, int length, uint32_t hash)
     }
 }
 
-void Table::mark()
+void TableLox::mark()
 {
     VM& vm = VM::getInstance();
     for (int i = 0; i < capacity; i++)
@@ -209,7 +209,7 @@ void Table::mark()
     }
 }
 
-inline void Table::removeWhite()
+void TableLox::removeWhite()
 {
     for (int i = 0; i < capacity; i++)
     {
@@ -221,7 +221,7 @@ inline void Table::removeWhite()
     }
 }
 
-void Table::copyTo(Table& to) const
+void TableLox::copyTo(TableLox& to) const
 {
     for (uint32_t i = 0; i < capacity; i++)
     {
@@ -234,7 +234,7 @@ void Table::copyTo(Table& to) const
 }
 
 
-void Table::Clear()
+void TableLox::Clear()
 {
     entries.clear();
     count = 0;

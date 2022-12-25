@@ -349,6 +349,22 @@ void Compiler::call(bool canAssign)
     emitBytes(OpByte(OpCode::OP_CALL), argCount);
 }
 
+void Compiler::dot(bool canAssign)
+{
+    consume(TokenType::IDENTIFIER, "Expect property name after '.'.");
+    const uint32_t name = identifierConstant(parser.previous);
+
+    if (canAssign && match(TokenType::EQUAL))
+    {
+        expression();
+        emitOpWithValue(OpCode::OP_SET_PROPERTY, OpCode::OP_SET_PROPERTY_LONG, name);
+    }
+    else
+    {
+        emitOpWithValue(OpCode::OP_GET_PROPERTY, OpCode::OP_GET_PROPERTY_LONG, name);
+    }
+}
+
 void Compiler::literal(bool canAssign)
 {
     switch (parser.previous.type)
@@ -769,6 +785,19 @@ void Compiler::function(FunctionType type)
     }
 }
 
+inline void Compiler::classDeclaration()
+{
+    consume(TokenType::IDENTIFIER, "Expect class name.");
+    const uint32_t nameConstant = identifierConstant(parser.previous);
+    declareVariable(false);
+
+    emitOpWithValue(OpCode::OP_CLASS, OpCode::OP_CLASS_LONG, nameConstant);
+    defineVariable(nameConstant);
+
+    consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+    consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+}
+
 void Compiler::funDeclaration()
 {
     const uint32_t global = parseVariable("Expect function name.", false);
@@ -1155,7 +1184,11 @@ void Compiler::synchronize()
 
 void Compiler::declaration()
 {
-    if (match(TokenType::FUN))
+    if (match(TokenType::CLASS))
+    {
+        classDeclaration();
+    }
+    else if (match(TokenType::FUN))
     {
         funDeclaration();
     }

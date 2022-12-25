@@ -35,7 +35,6 @@ class VM
 {
 public:
 
-    using Table = ::TableCpp;
     using ObjList = std::list<Obj*>;
 
     VM();

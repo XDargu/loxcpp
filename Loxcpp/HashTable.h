@@ -36,9 +36,9 @@ private:
 
 };
 
-struct Table
+struct TableLox
 {
-    Table();
+    TableLox();
 
     bool set(ObjString* key, const Value& value);
     bool get(ObjString* key, Value* value);
@@ -46,10 +46,11 @@ struct Table
     ObjString* findString(const char* chars, int length, uint32_t hash);
     void mark();
     void removeWhite();
+
 private:
     void adjustCapacity(size_t capacity);
 
-    void copyTo(Table& to) const;
+    void copyTo(TableLox& to) const;
 
     void Clear();
 
@@ -57,5 +58,7 @@ private:
     size_t capacity;
     std::vector<Entry> entries;
 };
+
+using Table = TableLox;
 
 #endif

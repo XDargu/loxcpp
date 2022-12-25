@@ -78,6 +78,16 @@ ObjUpvalue* newUpvalue(Value* slot)
     return allocate<ObjUpvalue>(slot);
 }
 
+ObjInstance* newInstance(ObjClass* klass)
+{
+    return allocate<ObjInstance>(klass);
+}
+
+ObjClass* newClass(ObjString* name)
+{
+    return allocate<ObjClass>(name);
+}
+
 ObjClosure* newClosure(ObjFunction* function)
 {
     return allocate<ObjClosure>(function);
@@ -135,7 +145,14 @@ void printObject(const Value& value)
     case ObjType::RANGE:
         printRange(asRange(value));
         break;
+    case ObjType::CLASS:
+        std::cout << asClass(value)->name->chars;
+        break;
+    case ObjType::INSTANCE:
+        std::cout << asInstance(value)->klass->name->chars << " instance";
+        break;
     }
+    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
 }
 
 ObjString* objectAsString(const Value& value)
@@ -145,9 +162,13 @@ ObjString* objectAsString(const Value& value)
         case ObjType::STRING: return asString(value);
         case ObjType::NATIVE: return takeString("<native fn>", 11);
         case ObjType::FUNCTION: return takeString("<" + asFunction(value)->name->chars + ">");
+        case ObjType::CLOSURE: return takeString("<" + asClosure(value)->function->name->chars + ">");
         case ObjType::RANGE: return takeString(std::to_string(asRange(value)->min) + ".." + std::to_string(asRange(value)->max));
+        case ObjType::CLASS: return takeString("" + asClass(value)->name->chars);
+        case ObjType::INSTANCE: return takeString("" + asInstance(value)->klass->name->chars);
     }
 
+    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
     return takeString("<Unknown>", 9);
 }
 

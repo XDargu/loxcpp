@@ -140,6 +140,14 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return byteInstruction("OP_GET_UPVALUE", chunk, offset);
     case OpCode::OP_SET_UPVALUE:
         return byteInstruction("OP_SET_UPVALUE", chunk, offset);
+    case OpCode::OP_GET_PROPERTY:
+        return constantInstruction("OP_GET_PROPERTY", chunk, offset);
+    case OpCode::OP_SET_PROPERTY:
+        return constantInstruction("OP_SET_PROPERTY", chunk, offset);
+    case OpCode::OP_GET_PROPERTY_LONG:
+        return constantLongInstruction("OP_GET_PROPERTY_LONG", chunk, offset);
+    case OpCode::OP_SET_PROPERTY_LONG:
+        return constantLongInstruction("OP_SET_PROPERTY_LONG", chunk, offset);
     case OpCode::OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
     case OpCode::OP_MATCH:
@@ -227,10 +235,14 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
     }
     case OpCode::OP_CLOSE_UPVALUE:
         return simpleInstruction("OP_CLOSE_UPVALUE", offset);
+    case OpCode::OP_CLASS:
+        return constantInstruction("OP_CLASS", chunk, offset);
+    case OpCode::OP_CLASS_LONG:
+        return constantLongInstruction("OP_CLASS_LONG", chunk, offset);
     default:
         std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 42, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 48, "Missing operations in the Debug");
 }
