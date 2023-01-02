@@ -148,6 +148,10 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return constantLongInstruction("OP_GET_PROPERTY_LONG", chunk, offset);
     case OpCode::OP_SET_PROPERTY_LONG:
         return constantLongInstruction("OP_SET_PROPERTY_LONG", chunk, offset);
+    case OpCode::OP_GET_PROPERTY_STRING:
+        return byteInstruction("OP_GET_PROPERTY_STRING", chunk, offset);
+    case OpCode::OP_SET_PROPERTY_STRING:
+        return byteInstruction("OP_SET_PROPERTY_STRING", chunk, offset);
     case OpCode::OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
     case OpCode::OP_MATCH:
@@ -244,5 +248,5 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 48, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 50, "Missing operations in the Debug");
 }

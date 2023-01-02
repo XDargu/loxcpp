@@ -541,6 +541,58 @@ InterpretResult VM::run()
                 push(value);
                 break;
             }
+            case OpCode::OP_GET_PROPERTY_STRING:
+            {
+                if (!isInstance(peek(1)))
+                {
+                    runtimeError("Only instances have properties.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                if (!isString(peek(0)))
+                {
+                    runtimeError("Fields can only be accessed by strings.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* instance = asInstance(peek(1));
+                ObjString* name = asString(peek(0));
+
+                pop(); // Instance
+                pop(); // Name
+
+                Value value;
+                if (instance->fields.get(name, &value))
+                {
+                    push(value);
+                    break;
+                }
+
+                push(Value()); // Nil
+                break;
+            }
+            case OpCode::OP_SET_PROPERTY_STRING:
+            {
+                if (!isInstance(peek(2)))
+                {
+                    runtimeError("Only instances have fields.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                if (!isString(peek(1)))
+                {
+                    runtimeError("Fields can only be accessed by strings.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                ObjInstance* instance = asInstance(peek(2));
+                ObjString* name = asString(peek(1));
+
+                instance->fields.set(name, peek(0));
+                const Value value = pop();
+                pop();
+                pop();
+                push(value);
+                break;
+            }
             case OpCode::OP_EQUAL:
             {
                 const Value b = pop();
@@ -870,7 +922,7 @@ InterpretResult VM::run()
                 push(Value(newClass(readStringLong())));
                 break;
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 48, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 50, "Missing operations in the VM");
     }
 }
 

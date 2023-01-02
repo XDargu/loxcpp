@@ -89,6 +89,8 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_PAREN   
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // LEFT_BRACE    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_BRACE   
+      ParseRule(nullptr,              &Compiler::bracket,  Precedence::CALL),        // LEFT_BRACKET  
+      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_BRACKET 
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // COMMA         
       ParseRule(nullptr,              &Compiler::dot,      Precedence::CALL),        // DOT           
       ParseRule(&Compiler::unary,     &Compiler::binary,   Precedence::TERM),        // MINUS         
@@ -167,6 +169,7 @@ public:
     void binary(bool canAssign);
     void call(bool canAssign);
     void dot(bool canAssign);
+    void bracket(bool canAssign);
     void literal(bool canAssign);
     void grouping(bool canAssign);
     void number(bool canAssign);

@@ -8,7 +8,7 @@
 enum class TokenType
 {
     // Single-character tokens.
-    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE,
+    LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, LEFT_BRACKET, RIGHT_BRACKET,
     COMMA, DOT, MINUS, PLUS, COLON, SEMICOLON, SLASH, STAR,
 
     // One or two character tokens.
@@ -81,6 +81,8 @@ public:
             case ')': return makeToken(TokenType::RIGHT_PAREN);
             case '{': return makeToken(TokenType::LEFT_BRACE);
             case '}': return makeToken(TokenType::RIGHT_BRACE);
+            case '[': return makeToken(TokenType::LEFT_BRACKET);
+            case ']': return makeToken(TokenType::RIGHT_BRACKET);
             case ',': return makeToken(TokenType::COMMA);
             case '.': return makeToken(match('.') ? TokenType::DOT_DOT : TokenType::DOT);
             case ';': return makeToken(TokenType::SEMICOLON);
@@ -297,7 +299,7 @@ private:
         return TokenType::IDENTIFIER;
     }
 
-    TokenType checkKeyword(int keyStart, int keyLength, const char* rest, TokenType type)
+    TokenType checkKeyword(size_t keyStart, size_t keyLength, const char* rest, TokenType type)
     {
         if (current - start == keyStart + keyLength && 
             memcmp(&source.at(start) + keyStart, rest, keyLength) == 0)

@@ -3,7 +3,6 @@
 #include <iostream>
 #include <iomanip>
 
-#include "Scanner.h"
 #include "Debug.h"
 #include "Object.h"
 
@@ -363,6 +362,24 @@ void Compiler::dot(bool canAssign)
     {
         emitOpWithValue(OpCode::OP_GET_PROPERTY, OpCode::OP_GET_PROPERTY_LONG, name);
     }
+}
+
+void Compiler::bracket(bool canAssign)
+{
+    expression();
+    consume(TokenType::RIGHT_BRACKET, "Expect closing brackets ']'.");
+
+    if (canAssign && match(TokenType::EQUAL))
+    {
+        expression();
+        emitByte(OpByte(OpCode::OP_SET_PROPERTY_STRING));
+    }
+    else
+    {
+        emitByte(OpByte(OpCode::OP_GET_PROPERTY_STRING));
+    }
+
+    
 }
 
 void Compiler::literal(bool canAssign)
