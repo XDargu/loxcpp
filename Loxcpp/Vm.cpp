@@ -22,6 +22,7 @@ VM::VM()
     : stackTop(nullptr)
     , frames()
     , frameCount(0)
+    , initString(nullptr)
     , openUpvalues(nullptr)
     , compiler()
 {
@@ -103,6 +104,8 @@ InterpretResult VM::interpret(const std::string& source)
             return Value();
         });
     }
+
+    initString = copyString("init", 4);
 
     ObjFunction* function = compiler.compile(source);
     if (function == nullptr) return InterpretResult::INTERPRET_COMPILE_ERROR;
@@ -188,6 +191,7 @@ void VM::markRoots()
 
     globals.mark();
     markCompilerRoots();
+    markObject(initString);
     strings.removeWhite();
 }
 
@@ -294,10 +298,18 @@ void VM::blackenObject(Obj* object)
         }
         break;
     }
+    case ObjType::BOUND_METHOD:
+    {
+        ObjBoundMethod* bound = static_cast<ObjBoundMethod*>(object);
+        markValue(bound->receiver);
+        markObject(bound->method);
+        break;
+    }
     case ObjType::CLASS:
     {
         ObjClass* klass = static_cast<ObjClass*>(object);
         markObject(klass->name);
+        klass->methods.mark();
         break;
     }
     case ObjType::INSTANCE:
@@ -309,7 +321,7 @@ void VM::blackenObject(Obj* object)
     }
     }
 
-    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
 }
 
 InterpretResult VM::run()
@@ -485,6 +497,11 @@ InterpretResult VM::run()
                     break;
                 }
 
+                if (bindMethod(instance, name))
+                {
+                    break;
+                }
+
                 push(Value()); // Nil
                 break;
             }
@@ -505,6 +522,11 @@ InterpretResult VM::run()
                 if (instance->fields.get(name, &value))
                 {
                     push(value);
+                    break;
+                }
+
+                if (bindMethod(instance, name))
+                {
                     break;
                 }
 
@@ -564,6 +586,11 @@ InterpretResult VM::run()
                 if (instance->fields.get(name, &value))
                 {
                     push(value);
+                    break;
+                }
+
+                if (bindMethod(instance, name))
+                {
                     break;
                 }
 
@@ -855,6 +882,28 @@ InterpretResult VM::run()
                 frame = &frames[frameCount - 1];
                 break;
             }
+            case OpCode::OP_INVOKE:
+            {
+                ObjString* method = readString();
+                const uint8_t argCount = readByte();
+                if (!invoke(method, argCount))
+                {
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &frames[frameCount - 1];
+                break;
+            }
+            case OpCode::OP_INVOKE_LONG:
+            {
+                ObjString* method = readStringLong();
+                const uint8_t argCount = readByte();
+                if (!invoke(method, argCount))
+                {
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+                frame = &frames[frameCount - 1];
+                break;
+            }
             case OpCode::OP_CLOSURE:
             {
                 ObjFunction* function = asFunction(readConstant());
@@ -921,8 +970,14 @@ InterpretResult VM::run()
             case OpCode::OP_CLASS_LONG:
                 push(Value(newClass(readStringLong())));
                 break;
+            case OpCode::OP_METHOD:
+                defineMethod(readString());
+                break;
+            case OpCode::OP_METHOD_LONG:
+                defineMethod(readStringLong());
+                break;
         }
-        static_assert(static_cast<int>(OpCode::COUNT) == 50, "Missing operations in the VM");
+        static_assert(static_cast<int>(OpCode::COUNT) == 54, "Missing operations in the VM");
     }
 }
 
@@ -1035,10 +1090,28 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
     {
         switch (getObjType(callee))
         {
+        case ObjType::BOUND_METHOD:
+        {
+            ObjBoundMethod* bound = asBoundMethod(callee);
+            stackTop[-argCount - 1] = bound->receiver;
+            return call(bound->method, argCount);
+        }
         case ObjType::CLASS:
         {
             ObjClass* klass = asClass(callee);
             stackTop[-argCount - 1] = Value(newInstance(klass));
+
+            Value initializer;
+            if (klass->methods.get(initString, &initializer))
+            {
+                return call(asClosure(initializer), argCount);
+            }
+            else if (argCount != 0)
+            {
+                runtimeError("Expected 0 arguments but got %d.", argCount);
+                return false;
+            }
+
             return true;
         }
         case ObjType::CLOSURE:
@@ -1063,6 +1136,53 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
     }
     runtimeError("Can only call functions and classes.");
     return false;
+}
+
+bool VM::invokeFromClass(ObjClass* klass, ObjString* name, uint8_t argCount)
+{
+    Value method;
+    if (!klass->methods.get(name, &method))
+    {
+        runtimeError("Undefined property '%s'.", name->chars.c_str());
+        return false;
+    }
+    return call(asClosure(method), argCount);
+}
+
+bool VM::invoke(ObjString* name, uint8_t argCount)
+{
+    const Value receiver = peek(argCount);
+
+    if (!isInstance(receiver))
+    {
+        runtimeError("Only instances have methods.");
+        return false;
+    }
+
+    ObjInstance* instance = asInstance(receiver);
+
+    Value value;
+    if (instance->fields.get(name, &value))
+    {
+        stackTop[-argCount - 1] = value;
+        return callValue(value, argCount);
+    }
+
+    return invokeFromClass(instance->klass, name, argCount);
+}
+
+bool VM::bindMethod(ObjInstance* instance, ObjString* name)
+{
+    Value method;
+    if (!instance->klass->methods.get(name, &method))
+    {
+        return false;
+    }
+
+    ObjBoundMethod* bound = newBoundMethod(instance, asClosure(method));
+    pop();
+    push(Value(bound));
+    return true;
 }
 
 ObjUpvalue* VM::captureUpvalue(Value* local)
@@ -1105,4 +1225,12 @@ void VM::closeUpvalues(Value* last)
         upvalue->location = &upvalue->closed;
         openUpvalues = upvalue->next;
     }
+}
+
+void VM::defineMethod(ObjString* name)
+{
+    const Value method = peek(0);
+    ObjClass* klass = asClass(peek(1));
+    klass->methods.set(name, method);
+    pop();
 }

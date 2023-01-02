@@ -86,8 +86,12 @@ private:
 
     bool call(ObjClosure* closure, uint8_t argCount);
     bool callValue(const Value& callee, uint8_t argCount);
+    bool invokeFromClass(ObjClass* klass, ObjString* name, uint8_t argCount);
+    bool invoke(ObjString* name, uint8_t argCount);
+    bool bindMethod(ObjInstance* instance, ObjString* name);
     ObjUpvalue* captureUpvalue(Value* local);
     void closeUpvalues(Value* last);
+    void defineMethod(ObjString* name);
 
     static constexpr size_t STACK_MAX = 256;
     static constexpr size_t FRAMES_MAX = 255;
@@ -96,6 +100,7 @@ private:
     size_t frameCount;
     std::array<Value, STACK_MAX> stack;
     ObjList objects;
+    ObjString* initString;
     ObjUpvalue* openUpvalues; // Maybe this could also be a list?
     Value* stackTop;
     Table strings;

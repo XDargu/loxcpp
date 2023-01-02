@@ -50,6 +50,8 @@ struct Upvalue
  enum class FunctionType 
  {
     FUNCTION,
+    INITIALIZER,
+    METHOD,
     SCRIPT
 };
 
@@ -66,6 +68,11 @@ struct CompilerScope
     int localCount;
     std::array<Upvalue, UINT8_COUNT> upvalues;
     int scopeDepth;
+};
+
+struct ClassCompilerScope
+{
+    struct ClassCompilerScope* enclosing;
 };
 
 class Compiler
@@ -126,7 +133,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // PRINT         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RETURN        
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // SUPER         
-      ParseRule(nullptr,              nullptr,             Precedence::NONE),        // THIS          
+      ParseRule(&Compiler::this_,     nullptr,             Precedence::NONE),        // THIS          
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // TRUE          
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // VAR           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CONST         
@@ -177,6 +184,7 @@ public:
     void string(bool canAssign);
     void namedVariable(const Token& name, bool canAssign);
     void variable(bool canAssign);
+    void this_(bool canAssign);
     void unary(bool canAssign);
     void funExpr(bool canAssign);
     void parsePrecedence(Precedence precedence);
@@ -199,6 +207,7 @@ public:
     void expression();
     void block();
     void function(FunctionType type);
+    void method();
     void classDeclaration();
     void funDeclaration();
     void beginScope();
@@ -229,6 +238,7 @@ public:
     std::set<uint32_t> constGlobals;
 
     CompilerScope* current;
+    ClassCompilerScope* currentClass;
 };
 
 #endif

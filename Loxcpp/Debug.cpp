@@ -69,6 +69,26 @@ size_t constantLongInstruction(const std::string& name, const Chunk& chunk, size
     return offset + 5;
 }
 
+size_t invokeInstruction(const std::string& name, const Chunk& chunk, size_t offset)
+{
+    uint8_t constant = chunk.code[offset + 1];
+    uint8_t argCount = chunk.code[offset + 2];
+    std::cout << name << " (" << +argCount << " args) " << +constant << " '";
+    printValue(chunk.constants.values[constant]);
+    std::cout << "'" << std::endl;
+    return offset + 3;
+}
+
+size_t invokeLongInstruction(const std::string& name, const Chunk& chunk, size_t offset)
+{
+    const uint32_t constant = longConstant(chunk, offset);
+    uint8_t argCount = chunk.code[offset + 5];
+    std::cout << name << " (" << +argCount << " args) " << +constant << " '";
+    printValue(chunk.constants.values[constant]);
+    std::cout << "'" << std::endl;
+    return offset + 6;
+}
+
 void disassembleChunk(const Chunk& chunk, const char* name)
 {
     std::cout << "==" << name << "==" << std::endl;
@@ -194,6 +214,10 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return simpleInstruction("OP_RETURN", offset);
     case OpCode::OP_CALL:
         return byteInstruction("OP_CALL", chunk, offset);
+    case OpCode::OP_INVOKE:
+        return invokeInstruction("OP_INVOKE", chunk, offset);
+    case OpCode::OP_INVOKE_LONG:
+        return invokeLongInstruction("OP_INVOKE_LONG", chunk, offset);
     case OpCode::OP_CLOSURE:
     {
         offset++;
@@ -243,10 +267,14 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return constantInstruction("OP_CLASS", chunk, offset);
     case OpCode::OP_CLASS_LONG:
         return constantLongInstruction("OP_CLASS_LONG", chunk, offset);
+    case OpCode::OP_METHOD:
+        return constantInstruction("OP_METHOD", chunk, offset);
+    case OpCode::OP_METHOD_LONG:
+        return constantLongInstruction("OP_METHOD_LONG", chunk, offset);
     default:
         std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
         return offset + 1;
     }
 
-    static_assert(static_cast<int>(OpCode::COUNT) == 50, "Missing operations in the Debug");
+    static_assert(static_cast<int>(OpCode::COUNT) == 54, "Missing operations in the Debug");
 }

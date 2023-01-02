@@ -16,6 +16,7 @@ enum class ObjType
     UPVALUE,
     FUNCTION,
     CLOSURE,
+    BOUND_METHOD,
     CLASS,
     INSTANCE,
     RANGE,
@@ -32,12 +33,13 @@ inline const char* objTypeToString(const ObjType type)
     case ObjType::UPVALUE: return "UPVALUE";
     case ObjType::FUNCTION: return "FUNCTION";
     case ObjType::CLOSURE: return "CLOSURE";
+    case ObjType::BOUND_METHOD: return "BOUND_METHOD";
     case ObjType::CLASS: return "CLASS";
     case ObjType::INSTANCE: return "INSTANCE";
     case ObjType::RANGE: return "RANGE";
     }
     return "UNKNOWN";
-    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
 }
 
 struct Obj
@@ -135,6 +137,7 @@ struct ObjClass : Obj
     {}
 
     ObjString* name;
+    Table methods;
 };
 
 struct ObjInstance : Obj
@@ -146,6 +149,18 @@ struct ObjInstance : Obj
 
     ObjClass* klass;
     Table fields;
+};
+
+struct ObjBoundMethod  : Obj
+{
+    ObjBoundMethod(const Value& receiver, ObjClosure* method)
+        : Obj(ObjType::BOUND_METHOD)
+        , receiver(receiver)
+        , method(method)
+    {}
+
+    Value receiver;
+    ObjClosure* method;
 };
 
 using NativeFn = Value(*)(int argCount, Value* args);
@@ -199,6 +214,7 @@ inline bool isObjType(const Value& value, const ObjType type)
 }
 inline bool isString(const Value& value) { return isObjType(value, ObjType::STRING); }
 inline bool isInstance(const Value& value) { return isObjType(value, ObjType::INSTANCE); }
+inline bool isBoundMethod(const Value& value) { return isObjType(value, ObjType::BOUND_METHOD); }
 inline bool isClass(const Value& value) { return isObjType(value, ObjType::CLASS); }
 inline bool isClosure(const Value& value) { return isObjType(value, ObjType::CLOSURE); }
 inline bool isFunction(const Value& value) { return isObjType(value, ObjType::FUNCTION); }
@@ -209,6 +225,7 @@ inline const char* asCString(const Value& value) { return static_cast<ObjString*
 
 inline ObjString* asString(const Value& value) { return static_cast<ObjString*>(asObject(value)); }
 inline ObjInstance* asInstance(const Value& value) { return static_cast<ObjInstance*>(asObject(value)); }
+inline ObjBoundMethod* asBoundMethod(const Value& value) { return static_cast<ObjBoundMethod*>(asObject(value)); }
 inline ObjClass* asClass(const Value& value) { return static_cast<ObjClass*>(asObject(value)); }
 inline ObjClosure* asClosure(const Value& value) { return static_cast<ObjClosure*>(asObject(value)); }
 inline ObjFunction* asFunction(const Value& value) { return static_cast<ObjFunction*>(asObject(value)); }
@@ -221,6 +238,7 @@ ObjString* takeString(std::string&& chars);
 
 ObjUpvalue* newUpvalue(Value* slot);
 ObjInstance* newInstance(ObjClass* klass);
+ObjBoundMethod* newBoundMethod(const Value& receiver, ObjClosure* method);
 ObjClass* newClass(ObjString* name);
 ObjClosure* newClosure(ObjFunction* function);
 ObjFunction* newFunction();

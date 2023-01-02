@@ -39,6 +39,17 @@ CompilerScope::CompilerScope(FunctionType type, CompilerScope* enclosing, Token*
     local.name.length = 0;
     local.constant = false;
     local.isCaptured = false;
+
+    if (type != FunctionType::FUNCTION)
+    {
+        local.name.start = "this";
+        local.name.length = 4;
+    }
+    else
+    {
+        local.name.start = "";
+        local.name.length = 0;
+    }
 }
 
 Compiler::ParseRule::ParseRule(ParseFn prefix, ParseFn infix, Precedence precedence)
@@ -76,6 +87,7 @@ ObjFunction* Compiler::compile(const std::string& source)
 
     compilerData = CompilerScope(FunctionType::SCRIPT, nullptr, nullptr);
     current = &compilerData;
+    currentClass = nullptr;
 
     parser.hadError = false;
     parser.panicMode = false;
@@ -99,6 +111,7 @@ Compiler::Compiler()
     : scanner()
     , compilerData()
     , current(&compilerData)
+    , currentClass(nullptr)
 {
 }
 
@@ -203,6 +216,15 @@ void Compiler::emitOpWithValue(OpCode shortOp, OpCode longOp, uint32_t value)
 
 void Compiler::emitReturn()
 {
+    if (current->type == FunctionType::INITIALIZER)
+    {
+        emitBytes(OpByte(OpCode::OP_GET_LOCAL), 0);
+    }
+    else
+    {
+        emitByte(OpByte(OpCode::OP_NIL));
+    }
+
     emitByte(OpByte(OpCode::OP_RETURN));
 }
 
@@ -358,6 +380,12 @@ void Compiler::dot(bool canAssign)
         expression();
         emitOpWithValue(OpCode::OP_SET_PROPERTY, OpCode::OP_SET_PROPERTY_LONG, name);
     }
+    else if (match(TokenType::LEFT_PAREN))
+    {
+        const uint8_t argCount = argumentList();
+        emitOpWithValue(OpCode::OP_INVOKE, OpCode::OP_INVOKE_LONG, name);
+        emitByte(argCount);
+    }
     else
     {
         emitOpWithValue(OpCode::OP_GET_PROPERTY, OpCode::OP_GET_PROPERTY_LONG, name);
@@ -491,6 +519,17 @@ void Compiler::namedVariable(const Token& name, bool canAssign)
 void Compiler::variable(bool canAssign)
 {
     namedVariable(parser.previous, canAssign);
+}
+
+void Compiler::this_(bool canAssign)
+{
+    if (currentClass == nullptr)
+    {
+        error("Can't use 'this' outside of a class.");
+        return;
+    }
+
+    variable(false);
 }
 
 void Compiler::unary(bool canAssign)
@@ -802,17 +841,47 @@ void Compiler::function(FunctionType type)
     }
 }
 
+void Compiler::method()
+{
+    consume(TokenType::IDENTIFIER, "Expect method name.");
+    const uint32_t constant = identifierConstant(parser.previous);
+
+    FunctionType type = FunctionType::METHOD;
+    if (parser.previous.length == 4 && memcmp(parser.previous.start, "init", 4) == 0)
+    {
+        type = FunctionType::INITIALIZER;
+    }
+    function(type);
+
+    emitOpWithValue(OpCode::OP_METHOD, OpCode::OP_METHOD_LONG, constant);
+}
+
 inline void Compiler::classDeclaration()
 {
     consume(TokenType::IDENTIFIER, "Expect class name.");
+    const Token className = parser.previous;
+
     const uint32_t nameConstant = identifierConstant(parser.previous);
     declareVariable(false);
 
     emitOpWithValue(OpCode::OP_CLASS, OpCode::OP_CLASS_LONG, nameConstant);
     defineVariable(nameConstant);
 
+    ClassCompilerScope classCompilerScope;
+    classCompilerScope.enclosing = currentClass;
+    currentClass = &classCompilerScope;
+
+    namedVariable(className, false);
+
     consume(TokenType::LEFT_BRACE, "Expect '{' before class body.");
+    while (!check(TokenType::RIGHT_BRACE) && !check(TokenType::EOFILE))
+    {
+        method();
+    }
     consume(TokenType::RIGHT_BRACE, "Expect '}' after class body.");
+    emitByte(OpByte(OpCode::OP_POP));
+
+    currentClass = currentClass->enclosing;
 }
 
 void Compiler::funDeclaration()
@@ -1045,6 +1114,11 @@ void Compiler::returnStatement()
     }
     else
     {
+        if (current->type == FunctionType::INITIALIZER)
+        {
+            error("Can't return a value from an initializer.");
+        }
+
         expression();
         consume(TokenType::SEMICOLON, "Expect ';' after return value.");
         emitByte(OpByte(OpCode::OP_RETURN));

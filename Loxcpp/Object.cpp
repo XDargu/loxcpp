@@ -83,6 +83,11 @@ ObjInstance* newInstance(ObjClass* klass)
     return allocate<ObjInstance>(klass);
 }
 
+ObjBoundMethod* newBoundMethod(const Value& receiver, ObjClosure* method)
+{
+    return allocate<ObjBoundMethod>(receiver, method);
+}
+
 ObjClass* newClass(ObjString* name)
 {
     return allocate<ObjClass>(name);
@@ -142,6 +147,9 @@ void printObject(const Value& value)
     case ObjType::CLOSURE:
         printFunction(asClosure(value)->function);
         break;
+    case ObjType::BOUND_METHOD:
+        printFunction(asBoundMethod(value)->method->function);
+        break;
     case ObjType::RANGE:
         printRange(asRange(value));
         break;
@@ -152,7 +160,7 @@ void printObject(const Value& value)
         std::cout << asInstance(value)->klass->name->chars << " instance";
         break;
     }
-    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
 }
 
 ObjString* objectAsString(const Value& value)
@@ -163,12 +171,13 @@ ObjString* objectAsString(const Value& value)
         case ObjType::NATIVE: return takeString("<native fn>", 11);
         case ObjType::FUNCTION: return takeString("<" + asFunction(value)->name->chars + ">");
         case ObjType::CLOSURE: return takeString("<" + asClosure(value)->function->name->chars + ">");
+        case ObjType::BOUND_METHOD: return takeString("<" + asBoundMethod(value)->method->function->name->chars + ">");
         case ObjType::RANGE: return takeString(std::to_string(asRange(value)->min) + ".." + std::to_string(asRange(value)->max));
         case ObjType::CLASS: return takeString("" + asClass(value)->name->chars);
-        case ObjType::INSTANCE: return takeString("" + asInstance(value)->klass->name->chars);
+        case ObjType::INSTANCE: return takeString(asInstance(value)->klass->name->chars + " instance");
     }
 
-    static_assert(static_cast<int>(ObjType::COUNT) == 8, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
     return takeString("<Unknown>", 9);
 }
 
