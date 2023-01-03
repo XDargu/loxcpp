@@ -22,7 +22,6 @@ VM::VM()
     : stackTop(nullptr)
     , frames()
     , frameCount(0)
-    , initString(nullptr)
     , openUpvalues(nullptr)
     , compiler()
 {
@@ -105,8 +104,6 @@ InterpretResult VM::interpret(const std::string& source)
         });
     }
 
-    initString = copyString("init", 4);
-
     ObjFunction* function = compiler.compile(source);
     if (function == nullptr) return InterpretResult::INTERPRET_COMPILE_ERROR;
 
@@ -159,6 +156,7 @@ void VM::collectGarbage()
 
     markRoots();
     traceReferences();
+    strings.removeWhite();
     sweep();
 
     nextGC = bytesAllocated * GC_HEAP_GROW_FACTOR;
@@ -191,8 +189,6 @@ void VM::markRoots()
 
     globals.mark();
     markCompilerRoots();
-    markObject(initString);
-    strings.removeWhite();
 }
 
 void VM::traceReferences()
@@ -309,6 +305,7 @@ void VM::blackenObject(Obj* object)
     {
         ObjClass* klass = static_cast<ObjClass*>(object);
         markObject(klass->name);
+        markObject(klass->initializer);
         klass->methods.mark();
         break;
     }
@@ -1101,10 +1098,9 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
             ObjClass* klass = asClass(callee);
             stackTop[-argCount - 1] = Value(newInstance(klass));
 
-            Value initializer;
-            if (klass->methods.get(initString, &initializer))
+            if (klass->initializer != nullptr)
             {
-                return call(asClosure(initializer), argCount);
+                return call(klass->initializer, argCount);
             }
             else if (argCount != 0)
             {
@@ -1231,6 +1227,13 @@ void VM::defineMethod(ObjString* name)
 {
     const Value method = peek(0);
     ObjClass* klass = asClass(peek(1));
-    klass->methods.set(name, method);
+    if (name->length == 4 && name->chars == "init")
+    {
+        klass->initializer = asClosure(method);
+    }
+    else
+    {
+        klass->methods.set(name, method);
+    }
     pop();
 }

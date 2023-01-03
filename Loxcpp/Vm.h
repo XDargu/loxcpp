@@ -100,7 +100,6 @@ private:
     size_t frameCount;
     std::array<Value, STACK_MAX> stack;
     ObjList objects;
-    ObjString* initString;
     ObjUpvalue* openUpvalues; // Maybe this could also be a list?
     Value* stackTop;
     Table strings;

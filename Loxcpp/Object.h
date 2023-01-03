@@ -134,10 +134,12 @@ struct ObjClass : Obj
     ObjClass(ObjString* name)
         : Obj(ObjType::CLASS)
         , name(name)
+        , initializer(nullptr)
     {}
 
     ObjString* name;
     Table methods;
+    ObjClosure* initializer;
 };
 
 struct ObjInstance : Obj
