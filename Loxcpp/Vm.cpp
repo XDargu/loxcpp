@@ -102,7 +102,74 @@ InterpretResult VM::interpret(const std::string& source)
 
             return Value();
         });
-    }
+
+        struct NativeMethodDef
+        {
+            const char* name;
+            int arity;
+            NativeFn function;
+        };
+
+        auto defineNativeClass = [this](const char* name, std::vector<NativeMethodDef>&& methods)
+        {
+            // Native Class Test
+            push(Value(copyString(name, (int)strlen(name))));
+            push(Value(newClass(asString(stack[0]))));
+
+            for (const NativeMethodDef& method : methods)
+            {
+                push(Value(copyString(method.name, (int)strlen(method.name))));
+                push(Value(newNative(method.arity, method.function, true)));
+
+                if (strcmp(method.name, "init") == 0)
+                    asClass(stack[1])->initializer = peek(0);
+                else
+                    asClass(stack[1])->methods.set(asString(peek(1)), peek(0));
+
+                pop();
+                pop();
+            }
+
+            globals.set(asString(peek(1)), peek(0));
+            pop();
+            pop();
+        };
+
+        // TODO: Add support for static functions and properties
+        // TODO: Add support for defining properties in a class
+        // TODO: Maybe remove the ability to add/remove fields randomly to classes?
+        defineNativeClass("Math",
+        {
+            { "init", 0, [](int argCount, Value* args)
+                {
+                    ObjInstance* this_ = asInstance(args[0]);
+                    this_->fields.set(copyString("PI", 2), Value(3.14159265358979323846));
+                    return Value(this_);
+                }
+            },
+            { "abs", 1, [](int argCount, Value* args)
+                {
+                    ObjInstance* this_ = asInstance(args[0]);
+                    if (isNumber(args[1]))
+                    {
+                        return Value(fabs(asNumber(args[1])));
+                    }
+                    return Value();
+                }
+            },
+            { "min", 2, [](int argCount, Value* args)
+                {
+                    ObjInstance* this_ = asInstance(args[0]);
+                    if (isNumber(args[1]) && isNumber(args[2]))
+                    {
+                        return Value(std::min(asNumber(args[1]), asNumber(args[2])));
+                    }
+                    return Value();
+                }
+            }
+        });
+    
+}
 
     ObjFunction* function = compiler.compile(source);
     if (function == nullptr) return InterpretResult::INTERPRET_COMPILE_ERROR;
@@ -298,14 +365,14 @@ void VM::blackenObject(Obj* object)
     {
         ObjBoundMethod* bound = static_cast<ObjBoundMethod*>(object);
         markValue(bound->receiver);
-        markObject(bound->method);
+        markValue(bound->method);
         break;
     }
     case ObjType::CLASS:
     {
         ObjClass* klass = static_cast<ObjClass*>(object);
         markObject(klass->name);
-        markObject(klass->initializer);
+        markValue(klass->initializer);
         klass->methods.mark();
         break;
     }
@@ -1015,7 +1082,7 @@ inline void VM::runtimeError(const char* format, ...)
 inline void VM::defineNative(const char* name, uint8_t arity, NativeFn function)
 {
     push(Value(copyString(name, (int)strlen(name))));
-    push(Value(newNative(arity, function)));
+    push(Value(newNative(arity, function, false)));
     globals.set(asString(stack[0]), stack[1]);
     pop();
     pop();
@@ -1091,16 +1158,16 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
         {
             ObjBoundMethod* bound = asBoundMethod(callee);
             stackTop[-argCount - 1] = bound->receiver;
-            return call(bound->method, argCount);
+            return callValue(bound->method, argCount);
         }
         case ObjType::CLASS:
         {
             ObjClass* klass = asClass(callee);
             stackTop[-argCount - 1] = Value(newInstance(klass));
 
-            if (klass->initializer != nullptr)
+            if (!isNil(klass->initializer))
             {
-                return call(klass->initializer, argCount);
+                return callValue(klass->initializer, argCount);
             }
             else if (argCount != 0)
             {
@@ -1121,7 +1188,7 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
                 return false;
             }
 
-            Value result = native->function(argCount, stackTop - argCount);
+            const Value result = native->function(argCount, stackTop - (native->isMethod ? argCount + 1 : argCount));
             stackTop -= argCount + 1;
             push(result);
             return true;
@@ -1142,7 +1209,7 @@ bool VM::invokeFromClass(ObjClass* klass, ObjString* name, uint8_t argCount)
         runtimeError("Undefined property '%s'.", name->chars.c_str());
         return false;
     }
-    return call(asClosure(method), argCount);
+    return callValue(method, argCount);
 }
 
 bool VM::invoke(ObjString* name, uint8_t argCount)
@@ -1175,7 +1242,7 @@ bool VM::bindMethod(ObjInstance* instance, ObjString* name)
         return false;
     }
 
-    ObjBoundMethod* bound = newBoundMethod(instance, asClosure(method));
+    ObjBoundMethod* bound = newBoundMethod(instance, method);
     pop();
     push(Value(bound));
     return true;
@@ -1229,7 +1296,7 @@ void VM::defineMethod(ObjString* name)
     ObjClass* klass = asClass(peek(1));
     if (name->length == 4 && name->chars == "init")
     {
-        klass->initializer = asClosure(method);
+        klass->initializer = method;
     }
     else
     {

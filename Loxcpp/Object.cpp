@@ -83,7 +83,7 @@ ObjInstance* newInstance(ObjClass* klass)
     return allocate<ObjInstance>(klass);
 }
 
-ObjBoundMethod* newBoundMethod(const Value& receiver, ObjClosure* method)
+ObjBoundMethod* newBoundMethod(const Value& receiver, Value& method)
 {
     return allocate<ObjBoundMethod>(receiver, method);
 }
@@ -103,9 +103,9 @@ ObjFunction* newFunction()
     return allocate<ObjFunction>(0, Chunk(), nullptr);
 }
 
-ObjNative* newNative(uint8_t arity, NativeFn function)
+ObjNative* newNative(uint8_t arity, NativeFn function, bool isMethod)
 {
-    return allocate<ObjNative>(arity, function);
+    return allocate<ObjNative>(arity, function, isMethod);
 }
 
 ObjRange* newRange(double min, double max)
@@ -148,7 +148,7 @@ void printObject(const Value& value)
         printFunction(asClosure(value)->function);
         break;
     case ObjType::BOUND_METHOD:
-        printFunction(asBoundMethod(value)->method->function);
+        printObject(asBoundMethod(value)->method);
         break;
     case ObjType::RANGE:
         printRange(asRange(value));
@@ -171,7 +171,7 @@ ObjString* objectAsString(const Value& value)
         case ObjType::NATIVE: return takeString("<native fn>", 11);
         case ObjType::FUNCTION: return takeString("<" + asFunction(value)->name->chars + ">");
         case ObjType::CLOSURE: return takeString("<" + asClosure(value)->function->name->chars + ">");
-        case ObjType::BOUND_METHOD: return takeString("<" + asBoundMethod(value)->method->function->name->chars + ">");
+        case ObjType::BOUND_METHOD: return objectAsString(asBoundMethod(value)->method);
         case ObjType::RANGE: return takeString(std::to_string(asRange(value)->min) + ".." + std::to_string(asRange(value)->max));
         case ObjType::CLASS: return takeString("" + asClass(value)->name->chars);
         case ObjType::INSTANCE: return takeString(asInstance(value)->klass->name->chars + " instance");

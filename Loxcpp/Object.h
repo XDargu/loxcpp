@@ -134,12 +134,12 @@ struct ObjClass : Obj
     ObjClass(ObjString* name)
         : Obj(ObjType::CLASS)
         , name(name)
-        , initializer(nullptr)
+        , initializer()
     {}
 
     ObjString* name;
     Table methods;
-    ObjClosure* initializer;
+    Value initializer;
 };
 
 struct ObjInstance : Obj
@@ -155,28 +155,30 @@ struct ObjInstance : Obj
 
 struct ObjBoundMethod  : Obj
 {
-    ObjBoundMethod(const Value& receiver, ObjClosure* method)
+    ObjBoundMethod(const Value& receiver, Value& method)
         : Obj(ObjType::BOUND_METHOD)
         , receiver(receiver)
         , method(method)
     {}
 
     Value receiver;
-    ObjClosure* method;
+    Value method;
 };
 
 using NativeFn = Value(*)(int argCount, Value* args);
 
 struct ObjNative : Obj
 {
-    ObjNative(uint8_t arity, NativeFn function)
+    ObjNative(uint8_t arity, NativeFn function, bool isMethod)
         : Obj(ObjType::NATIVE)
         , function(function)
         , arity(arity)
+        , isMethod(isMethod)
     {}
 
     NativeFn function;
     uint8_t arity;
+    bool isMethod;
 };
 
 struct ObjRange : Obj
@@ -240,11 +242,11 @@ ObjString* takeString(std::string&& chars);
 
 ObjUpvalue* newUpvalue(Value* slot);
 ObjInstance* newInstance(ObjClass* klass);
-ObjBoundMethod* newBoundMethod(const Value& receiver, ObjClosure* method);
+ObjBoundMethod* newBoundMethod(const Value& receiver, Value& method);
 ObjClass* newClass(ObjString* name);
 ObjClosure* newClosure(ObjFunction* function);
 ObjFunction* newFunction();
-ObjNative* newNative(uint8_t arity, NativeFn function);
+ObjNative* newNative(uint8_t arity, NativeFn function, bool isMethod);
 
 ObjRange* newRange(double min, double max);
 
