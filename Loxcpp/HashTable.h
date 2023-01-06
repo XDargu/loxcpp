@@ -29,6 +29,16 @@ struct TableCpp
     ObjString* findString(const char* chars, int length, uint32_t hash);
     void mark();
     void removeWhite();
+    size_t getSize() const
+    {
+        size_t entriesSize = 0;
+        for (const auto& entry : entries)
+        {
+            entriesSize += sizeOf(entry.second.value);
+            entriesSize += sizeof(uint32_t);
+        }
+        return sizeof(TableCpp) + entriesSize;
+    }
 
 private:
 
@@ -46,6 +56,15 @@ struct TableLox
     ObjString* findString(const char* chars, int length, uint32_t hash);
     void mark();
     void removeWhite();
+    size_t getSize() const
+    {
+        size_t entriesSize = 0;
+        for (const Entry& entry : entries)
+        {
+            entriesSize += sizeOf(entry.value);
+        }
+        return sizeof(TableLox) + entriesSize;
+    }
 
 private:
     void adjustCapacity(size_t capacity);

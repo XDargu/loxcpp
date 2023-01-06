@@ -251,6 +251,8 @@ ObjNative* newNative(uint8_t arity, NativeFn function, bool isMethod);
 ObjRange* newRange(double min, double max);
 
 void printObject(const Value& value);
+size_t sizeOfObject(const Value& value);
+
 ObjString* objectAsString(const Value& value);
 ObjString* concatenate(ObjString* a, ObjString* b);
 

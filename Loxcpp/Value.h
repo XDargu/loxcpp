@@ -6,7 +6,7 @@
 
 #include "Common.h"
 
-enum class ValueType
+enum class ValueType : uint8_t
 {
     BOOL,
     NIL,
@@ -46,23 +46,23 @@ struct Value
         : type(ValueType::NIL)
     {}
 
-    Value(bool value)
+    explicit Value(bool value)
         : type(ValueType::BOOL)
         , as(value)
     {}
 
-    Value(double value)
+    explicit Value(double value)
         : type(ValueType::NUMBER)
         , as(value)
     {}
 
-    Value(Obj* obj)
+    explicit Value(Obj* obj)
         : type(ValueType::OBJ)
         , as(obj)
     {}
 
-    ValueType type;
     TypeUnion as;
+    ValueType type;
 
     bool operator==(const Value& other) const;
 };
@@ -83,5 +83,6 @@ struct ValueArray
 
 void printValue(const Value& value);
 ObjString* valueAsString(const Value& value);
+size_t sizeOf(const Value& value);
 
 #endif

@@ -102,6 +102,10 @@ InterpretResult VM::interpret(const std::string& source)
 
             return Value();
         });
+        defineNative("sizeof", 1, [](int argCount, Value* args)
+        {
+            return Value((double)sizeOf(args[0]));
+        });
 
         struct NativeMethodDef
         {
@@ -909,7 +913,7 @@ InterpretResult VM::run()
             }
             case OpCode::OP_NOT:
             {
-                push(isFalsey(pop()));
+                push(Value(isFalsey(pop())));
                 break;
             }
             case OpCode::OP_PRINT:
@@ -1242,7 +1246,7 @@ bool VM::bindMethod(ObjInstance* instance, ObjString* name)
         return false;
     }
 
-    ObjBoundMethod* bound = newBoundMethod(instance, method);
+    ObjBoundMethod* bound = newBoundMethod(Value(instance), method);
     pop();
     push(Value(bound));
     return true;

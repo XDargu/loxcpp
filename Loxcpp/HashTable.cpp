@@ -111,7 +111,7 @@ bool TableLox::set(ObjString* key, const Value& value)
 {
     if (count + 1 > capacity * TABLE_MAX_LOAD)
     {
-        const size_t nextCapacity = capacity < 8 ? 8 : capacity * 2;
+        const size_t nextCapacity = capacity < 2 ? 2 : capacity * 2;
         adjustCapacity(nextCapacity);
     }
 

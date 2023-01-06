@@ -163,6 +163,45 @@ void printObject(const Value& value)
     static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
 }
 
+size_t sizeOfObject(const Value& value)
+{
+    switch (getObjType(value))
+    {
+    case ObjType::STRING: return sizeof(ObjString) + asString(value)->length;
+    case ObjType::NATIVE: return sizeof(ObjNative);
+    case ObjType::UPVALUE: return sizeof(ObjUpvalue) + sizeOf(static_cast<ObjUpvalue*>(asObject(value))->closed);
+    case ObjType::FUNCTION:
+    {
+        //const ObjFunction* function = asFunction(value);
+        return sizeof(ObjFunction);
+            /*+sizeOfObject(function->name)
+            + function->chunk.code.size() * sizeof(ChunkInstructions::value_type)
+            + function->chunk.lines.size() * sizeof(int)
+            + function->chunk.constants.values.size() * sizeof(Value);*/
+    }
+    case ObjType::CLOSURE:
+    {
+        size_t upValuesSize = 0;
+        for (ObjUpvalue* upvalue : asClosure(value)->upvalues)
+        {
+            Value test(upvalue);
+            upValuesSize += sizeOfObject(test);
+        }
+        return sizeof(ObjClosure);
+    }
+    case ObjType::BOUND_METHOD: return sizeof(ObjBoundMethod);
+    case ObjType::RANGE: return sizeof(ObjRange);
+    case ObjType::CLASS: 
+        return sizeof(ObjClass)
+            + asClass(value)->methods.getSize()
+            + sizeOf(asClass(value)->initializer) - sizeof(Value);
+    case ObjType::INSTANCE: return sizeof(ObjInstance) + asInstance(value)->fields.getSize();
+    }
+
+    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
+    return 0;
+}
+
 ObjString* objectAsString(const Value& value)
 {
     switch (getObjType(value))

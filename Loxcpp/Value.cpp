@@ -30,6 +30,20 @@ ObjString* valueAsString(const Value& value)
     return takeString("<Unknown>", 9);
 }
 
+size_t sizeOf(const Value& value)
+{
+    switch (value.type)
+    {
+    case ValueType::BOOL:
+    case ValueType::NIL:
+    case ValueType::NUMBER:
+        return sizeof(Value);
+    case ValueType::OBJ:
+        return sizeof(Value) + sizeOfObject(value);
+    }
+    return 0;
+}
+
 bool Value::operator==(const Value& other) const
 {
     if (type != other.type) return false;
