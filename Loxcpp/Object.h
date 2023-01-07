@@ -20,6 +20,7 @@ enum class ObjType
     CLASS,
     INSTANCE,
     RANGE,
+    LIST,
 
     COUNT
 };
@@ -37,9 +38,10 @@ inline const char* objTypeToString(const ObjType type)
     case ObjType::CLASS: return "CLASS";
     case ObjType::INSTANCE: return "INSTANCE";
     case ObjType::RANGE: return "RANGE";
+    case ObjType::LIST: return "LIST";
     }
     return "UNKNOWN";
-    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 10, "Missing enum value");
 }
 
 struct Obj
@@ -195,13 +197,13 @@ struct ObjRange : Obj
         return value <= min && value >= max; // 5..1
     }
 
-    bool isInBounds(double idx)
+    bool isInBounds(int idx)
     {
         if (min < max) return idx >= 0 && idx <= max - min; // 1..5
         return idx >= 0 && idx <= min - max; // 5..1
     }
 
-    double getValue(double idx)
+    double getValue(int idx)
     {
         if (min < max) return min + idx; // 1..5
         return min - idx; // 5..1
@@ -209,6 +211,40 @@ struct ObjRange : Obj
 
     double min;
     double max;
+};
+
+struct ObjList : Obj
+{
+    ObjList()
+        : Obj(ObjType::LIST)
+    {}
+
+    void append(Value value)
+    {
+        items.push_back(value);
+    }
+
+    void setValue(int index, Value value)
+    {
+        items[index] = value;
+    }
+
+    Value getValue(int index)
+    {
+        return items[index];
+    }
+
+    void deleteValue(int index)
+    {
+        items.erase(items.begin() + index);
+    }
+
+    bool isInBounds(int index)
+    {
+        return index >= 0 && index < items.size();
+    }
+
+    std::vector<Value> items;
 };
 
 inline ObjType getObjType(const Value& value) { return asObject(value)->type; }
@@ -224,6 +260,7 @@ inline bool isClosure(const Value& value) { return isObjType(value, ObjType::CLO
 inline bool isFunction(const Value& value) { return isObjType(value, ObjType::FUNCTION); }
 inline bool isNative(const Value& value) { return isObjType(value, ObjType::NATIVE); }
 inline bool isRange(const Value& value) { return isObjType(value, ObjType::RANGE); }
+inline bool isList(const Value& value) { return isObjType(value, ObjType::LIST); }
 
 inline const char* asCString(const Value& value) { return static_cast<ObjString*>(asObject(value))->chars.c_str(); }
 
@@ -235,6 +272,7 @@ inline ObjClosure* asClosure(const Value& value) { return static_cast<ObjClosure
 inline ObjFunction* asFunction(const Value& value) { return static_cast<ObjFunction*>(asObject(value)); }
 inline ObjNative* asNative(const Value& value) { return static_cast<ObjNative*>(asObject(value)); }
 inline ObjRange* asRange(const Value& value) { return static_cast<ObjRange*>(asObject(value)); }
+inline ObjList* asList(const Value& value) { return static_cast<ObjList*>(asObject(value)); }
 
 ObjString* copyString(const char* chars, int length);
 ObjString* takeString(const char* chars, int length);
@@ -249,6 +287,7 @@ ObjFunction* newFunction();
 ObjNative* newNative(uint8_t arity, NativeFn function, bool isMethod);
 
 ObjRange* newRange(double min, double max);
+ObjList* newList();
 
 void printObject(const Value& value);
 size_t sizeOfObject(const Value& value);

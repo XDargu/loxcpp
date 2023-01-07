@@ -359,7 +359,7 @@ void Compiler::binary(bool canAssign)
         case TokenType::STAR:          emitByte(OpByte(OpCode::OP_MULTIPLY)); break;
         case TokenType::SLASH:         emitByte(OpByte(OpCode::OP_DIVIDE)); break;
         case TokenType::PERCENTAGE:    emitByte(OpByte(OpCode::OP_MODULO)); break;
-        case TokenType::DOT_DOT:       emitByte(OpByte(OpCode::OP_RANGE)); break;
+        case TokenType::DOT_DOT:       emitByte(OpByte(OpCode::OP_BUILD_RANGE)); break;
         default: return; // Unreachable.
     }
 }
@@ -392,19 +392,19 @@ void Compiler::dot(bool canAssign)
     }
 }
 
-void Compiler::bracket(bool canAssign)
+void Compiler::subscript(bool canAssign)
 {
-    expression();
+    parsePrecedence(Precedence::OR);
     consume(TokenType::RIGHT_BRACKET, "Expect closing brackets ']'.");
 
     if (canAssign && match(TokenType::EQUAL))
     {
         expression();
-        emitByte(OpByte(OpCode::OP_SET_PROPERTY_STRING));
+        emitByte(OpByte(OpCode::OP_STORE_SUBSCR));
     }
     else
     {
-        emitByte(OpByte(OpCode::OP_GET_PROPERTY_STRING));
+        emitByte(OpByte(OpCode::OP_INDEX_SUBSCR));
     }
 
     
@@ -551,6 +551,34 @@ void Compiler::unary(bool canAssign)
 void Compiler::funExpr(bool canAssign)
 {
     function(FunctionType::FUNCTION);
+}
+
+inline void Compiler::list(bool canAssign)
+{
+    int itemCount = 0;
+    if (!check(TokenType::RIGHT_BRACKET))
+    {
+        do {
+            if (check(TokenType::RIGHT_BRACKET))
+            {
+                // Trailing comma case
+                break;
+            }
+
+            parsePrecedence(Precedence::OR);
+
+            if (itemCount == UINT8_COUNT) {
+                error("Cannot have more than 256 items in a list literal.");
+            }
+            itemCount++;
+        } while (match(TokenType::COMMA));
+    }
+
+    consume(TokenType::RIGHT_BRACKET, "Expect ']' after list literal.");
+
+    emitByte(OpByte(OpCode::OP_BUILD_LIST));
+    emitByte(itemCount);
+    return;
 }
 
 void Compiler::parsePrecedence(Precedence precedence)
@@ -1032,8 +1060,8 @@ void Compiler::forInStatement()
     const size_t loopStart = currentChunk()->code.size();
 
     // Condition
-    namedVariable(iterToken, false);
     namedVariable(rangeToken, false); // Load range
+    namedVariable(iterToken, false);
     emitByte(OpByte(OpCode::OP_RANGE_IN_BOUNDS));
 
     const size_t exitJump = emitJump(OpByte(OpCode::OP_JUMP_IF_FALSE));
@@ -1045,11 +1073,11 @@ void Compiler::forInStatement()
     addLocal(localVarToken, true);
 
     // Set value from iterator
-    namedVariable(iterToken, false); // Load iterator
     namedVariable(rangeToken, false); // Load range
+    namedVariable(iterToken, false); // Load iterator
 
     // Set the local variable value before running the statement
-    emitByte(OpByte(OpCode::OP_RANGE_VALUE));
+    emitByte(OpByte(OpCode::OP_INDEX_SUBSCR));
     emitVariable(localVarToken, true, true); // Set local variable
 
     statement();

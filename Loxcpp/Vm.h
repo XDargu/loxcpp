@@ -35,7 +35,7 @@ class VM
 {
 public:
 
-    using ObjList = std::list<Obj*>;
+    using GCObjList = std::list<Obj*>;
 
     VM();
     VM(VM const&) = delete;
@@ -99,7 +99,7 @@ private:
     std::array<CallFrame, FRAMES_MAX> frames;
     size_t frameCount;
     std::array<Value, STACK_MAX> stack;
-    ObjList objects;
+    GCObjList objects;
     ObjUpvalue* openUpvalues; // Maybe this could also be a list?
     Value* stackTop;
     Table strings;

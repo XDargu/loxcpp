@@ -22,6 +22,7 @@ enum class Precedence : uint8_t
     UNARY,       // ! -
     RANGE,       // ..
     CALL,        // . ()
+    SUBSCRIPT,   //  []
     PRIMARY
 };
 
@@ -96,7 +97,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_PAREN   
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // LEFT_BRACE    
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_BRACE   
-      ParseRule(nullptr,              &Compiler::bracket,  Precedence::CALL),        // LEFT_BRACKET  
+      ParseRule(&Compiler::list,      &Compiler::subscript,Precedence::SUBSCRIPT), // LEFT_BRACKET  
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RIGHT_BRACKET 
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // COMMA         
       ParseRule(nullptr,              &Compiler::dot,      Precedence::CALL),        // DOT           
@@ -176,7 +177,7 @@ public:
     void binary(bool canAssign);
     void call(bool canAssign);
     void dot(bool canAssign);
-    void bracket(bool canAssign);
+    void subscript(bool canAssign);
     void literal(bool canAssign);
     void grouping(bool canAssign);
     void number(bool canAssign);
@@ -187,6 +188,7 @@ public:
     void this_(bool canAssign);
     void unary(bool canAssign);
     void funExpr(bool canAssign);
+    void list(bool canAssign);
     void parsePrecedence(Precedence precedence);
     uint32_t identifierConstant(const Token& name);
     bool identifiersEqual(const Token& a, const Token& b);

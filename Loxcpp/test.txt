@@ -1,49 +1,11 @@
-class Vector {
-  init(x, y) {
-    this.x = x;
-    this.y = y;
-  }
 
-  foo() {}
-  bar() {}
-  bar2() {}
-  bar3() {}
-  bar4() {}
-  bar5() {}
-  bar6() {}
-  bar7() {}
-  bar8() {}
-  bar9() {}
-  bar10() {}
-  bar11() {}
-  bar12() {}
-  bar13() {}
-  bar45() {}
-  bar55() {}
-  bar65() {}
-  bar57() {}
-  asdasd() {}
-  zzz() {}
-}
+for i in 1..3
+    print i;
 
-fun doBatch()
-{
-    for i in 1..10000
-    {
-        var v = Vector(i, i*i);
-    }
-}
+var a = [1,2,3];
+push(a, 5);
 
-var initTime = clock();
-var amount = 0;
-
-while( clock() - initTime < 3 )
-{
-    doBatch();
-    amount = amount + 1;
-}
-
-print amount;
+print a;
 
 /*for i in 100..103
 {

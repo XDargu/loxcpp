@@ -168,10 +168,6 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return constantLongInstruction("OP_GET_PROPERTY_LONG", chunk, offset);
     case OpCode::OP_SET_PROPERTY_LONG:
         return constantLongInstruction("OP_SET_PROPERTY_LONG", chunk, offset);
-    case OpCode::OP_GET_PROPERTY_STRING:
-        return byteInstruction("OP_GET_PROPERTY_STRING", chunk, offset);
-    case OpCode::OP_SET_PROPERTY_STRING:
-        return byteInstruction("OP_SET_PROPERTY_STRING", chunk, offset);
     case OpCode::OP_EQUAL:
         return simpleInstruction("OP_EQUAL", offset);
     case OpCode::OP_MATCH:
@@ -194,10 +190,14 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
         return simpleInstruction("OP_MODULO", offset);
     case OpCode::OP_INCREMENT:
         return simpleInstruction("OP_INCREMENT", offset);
-    case OpCode::OP_RANGE:
-        return simpleInstruction("OP_RANGE", offset);
-    case OpCode::OP_RANGE_VALUE:
-        return simpleInstruction("OP_RANGE_VALUE", offset);
+    case OpCode::OP_BUILD_RANGE:
+        return simpleInstruction("OP_BUILD_RANGE", offset);
+    case OpCode::OP_BUILD_LIST:
+        return simpleInstruction("OP_BUILD_LIST", offset);
+    case OpCode::OP_INDEX_SUBSCR:
+        return simpleInstruction("OP_INDEX_SUBSCR", offset);
+    case OpCode::OP_STORE_SUBSCR:
+        return simpleInstruction("OP_STORE_SUBSCR", offset);
     case OpCode::OP_RANGE_IN_BOUNDS:
         return simpleInstruction("OP_RANGE_IN_BOUNDS", offset);
     case OpCode::OP_NOT:

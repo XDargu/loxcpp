@@ -42,7 +42,7 @@ InterpretResult VM::interpret(const std::string& source)
             if (isRange(args[0]) && isNumber(args[1]))
             {
                 ObjRange* range = asRange(args[0]);
-                const double idx = asNumber(args[1]);
+                const int idx = static_cast<int>(asNumber(args[1]));
 
                 if (range->isInBounds(idx))
                 {
@@ -57,7 +57,7 @@ InterpretResult VM::interpret(const std::string& source)
             if (isRange(args[0]) && isNumber(args[1]))
             {
                 ObjRange* range = asRange(args[0]);
-                const double idx = asNumber(args[1]);
+                const int idx = static_cast<int>(asNumber(args[1]));
 
                 return Value(range->isInBounds(idx));
             }
@@ -105,6 +105,28 @@ InterpretResult VM::interpret(const std::string& source)
         defineNative("sizeof", 1, [](int argCount, Value* args)
         {
             return Value((double)sizeOf(args[0]));
+        });
+        defineNative("push", 2, [](int argCount, Value* args)
+        {
+            if (!isList(args[0]))
+            {
+                return Value();
+            }
+            ObjList* list = asList(args[0]);
+            Value item = args[1];
+            list->append(item);
+            return Value(static_cast<double>(list->items.size()));
+        });
+        defineNative("erase", 2, [](int argCount, Value* args)
+        {
+            if (!isList(args[0]) || !isNumber(args[1]))
+            {
+                return Value();
+            }
+            ObjList* list = asList(args[0]);
+            const int index = static_cast<int>(asNumber(args[1]));
+            list->deleteValue(index);
+            return Value();
         });
 
         struct NativeMethodDef
@@ -274,7 +296,7 @@ void VM::traceReferences()
 
 void VM::sweep()
 {
-    ObjList::iterator it = objects.begin();
+    GCObjList::iterator it = objects.begin();
     while (it != objects.end())
     {
         Obj* object = *it;
@@ -344,6 +366,15 @@ void VM::blackenObject(Obj* object)
     case ObjType::STRING:
     case ObjType::RANGE:
         break;
+    case ObjType::LIST:
+    {
+        ObjList* list = static_cast<ObjList*>(object);
+        for (int i = 0; i < list->items.size(); ++i)
+        {
+            markValue(list->items[i]);
+        }
+        break;
+    }
     case ObjType::UPVALUE:
         markValue((static_cast<ObjUpvalue*>(object)->closed));
         break;
@@ -389,7 +420,7 @@ void VM::blackenObject(Obj* object)
     }
     }
 
-    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 10, "Missing enum value");
 }
 
 InterpretResult VM::run()
@@ -631,63 +662,6 @@ InterpretResult VM::run()
                 push(value);
                 break;
             }
-            case OpCode::OP_GET_PROPERTY_STRING:
-            {
-                if (!isInstance(peek(1)))
-                {
-                    runtimeError("Only instances have properties.");
-                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                }
-                if (!isString(peek(0)))
-                {
-                    runtimeError("Fields can only be accessed by strings.");
-                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                }
-
-                ObjInstance* instance = asInstance(peek(1));
-                ObjString* name = asString(peek(0));
-
-                pop(); // Instance
-                pop(); // Name
-
-                Value value;
-                if (instance->fields.get(name, &value))
-                {
-                    push(value);
-                    break;
-                }
-
-                if (bindMethod(instance, name))
-                {
-                    break;
-                }
-
-                push(Value()); // Nil
-                break;
-            }
-            case OpCode::OP_SET_PROPERTY_STRING:
-            {
-                if (!isInstance(peek(2)))
-                {
-                    runtimeError("Only instances have fields.");
-                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                }
-                if (!isString(peek(1)))
-                {
-                    runtimeError("Fields can only be accessed by strings.");
-                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                }
-
-                ObjInstance* instance = asInstance(peek(2));
-                ObjString* name = asString(peek(1));
-
-                instance->fields.set(name, peek(0));
-                const Value value = pop();
-                pop();
-                pop();
-                push(value);
-                break;
-            }
             case OpCode::OP_EQUAL:
             {
                 const Value b = pop();
@@ -819,7 +793,7 @@ InterpretResult VM::run()
                 push(Value(a + 1));
                 break;
             }
-            case OpCode::OP_RANGE:
+            case OpCode::OP_BUILD_RANGE:
             {
                 if (!validateBinaryOperator()) { return InterpretResult::INTERPRET_RUNTIME_ERROR; }
                 const double max = asNumber(pop());
@@ -827,41 +801,105 @@ InterpretResult VM::run()
                 push(Value(newRange(min, max)));
                 break;
             }
-            case OpCode::OP_RANGE_VALUE:
+            case OpCode::OP_BUILD_LIST:
             {
-                if (isRange(peek(0)) && isNumber(peek(1)))
+                // Stack before: [item1, item2, ..., itemN] and after: [list]
+                ObjList* list = newList();
+                uint8_t itemCount = readByte();
+
+                // Add items to list
+                push(Value(list)); // So list isn't sweeped by GC in appendToList
+                for (int i = itemCount; i > 0; --i)
                 {
-                    ObjRange* range = asRange(peek(0));
-                    const double idx = asNumber(peek(1));
+                    list->append(peek(i));
+                }
+                pop();
+
+                // Pop items from stack
+                while (itemCount-- > 0)
+                {
+                    pop();
+                }
+
+                push(Value(list));
+                break;
+            }
+            case OpCode::OP_INDEX_SUBSCR:
+            {
+                // stack is: [...,source,index] and after: [item]
+                Value index = pop();
+                Value source = pop();
+
+                if (isInstance(source))
+                {
+                    if (!isString(index))
+                    {
+                        runtimeError("Fields can only be accessed by strings.");
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    ObjInstance* instance = asInstance(source);
+                    ObjString* name = asString(index);
+
+                    Value value;
+                    if (instance->fields.get(name, &value))
+                    {
+                        push(value);
+                        break;
+                    }
+
+                    push(index); // bind method will pop this
+                    if (bindMethod(instance, name))
+                    {
+                        break;
+                    }
+
+                    push(Value()); // Nil
+                    break;
+                }
+                if (!isNumber(index))
+                {
+                    runtimeError("Index is not a number.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                }
+
+                const int idx = static_cast<int>(asNumber(index));
+
+                if (isList(source))
+                {
+                    ObjList* list = asList(source);
+                    if (list->isInBounds(idx))
+                    {
+                        push(Value(list->getValue(idx)));
+                    }
+                    else
+                    {
+                        push(Value());
+                    }
+                }
+                else if (isRange(source))
+                {
+                    ObjRange* range = asRange(source);
                     if (range->isInBounds(idx))
                     {
-                        pop();
-                        pop();
                         push(Value(range->getValue(idx)));
                     }
                     else
                     {
-                        pop();
-                        pop();
                         push(Value());
                     }
                 }
-                else if (isString(peek(0)) && isNumber(peek(1)))
+                else if (isString(source))
                 {
-                    ObjString* string = asString(peek(0));
-                    const double idx = asNumber(peek(1));
-
+                    ObjString* string = asString(source);
                     if (idx >= 0 && idx < string->length)
                     {
-                        ObjString* character = takeString(&string->chars[idx], 1);
-                        pop();
-                        pop();
+                        const char c = string->chars[idx];
+                        ObjString* character = takeString(&c, 1);
                         push(Value(character));
                     }
                     else
                     {
-                        pop();
-                        pop();
                         push(Value());
                     }
                 }
@@ -872,37 +910,85 @@ InterpretResult VM::run()
                 }
                 break;
             }
+            case OpCode::OP_STORE_SUBSCR:
+            {
+                // stack is: [...,source,index,item] and after: [item]
+                // We can have: instance and string, or range|list|string and number
+                Value item = pop();
+                Value index = pop();
+                Value source = pop();
+
+                if (isInstance(source))
+                {
+                    if (!isString(index))
+                    {
+                        runtimeError("Fields can only be accessed by strings.");
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    ObjInstance* instance = asInstance(source);
+                    ObjString* name = asString(index);
+
+                    instance->fields.set(name, item);
+                    push(item);
+                }
+                else
+                {
+                    if (!isList(source))
+                    {
+                        runtimeError("Cannot store value in a non-list.");
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    if (!isNumber(index))
+                    {
+                        runtimeError("List index is not a number.");
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    const int idx = static_cast<int>(asNumber(index));
+
+                    ObjList* list = asList(source);
+
+                    // TODO: Maybe just reserve more space in the list?
+                    if (!list->isInBounds(idx))
+                    {
+                        runtimeError("Invalid list index.");
+                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                    }
+
+                    list->setValue(idx, item);
+                    push(item);
+                }
+                break;
+            }
             case OpCode::OP_RANGE_IN_BOUNDS:
             {
-                if (isRange(peek(0)) && isNumber(peek(1)))
+                // stack is: [...,source,index] and after: [true|false]
+                if (!isNumber(peek(0)))
                 {
-                    ObjRange* range = asRange(pop());
-                    const double idx = asNumber(pop());
-                    if (range->isInBounds(idx))
-                    {
-                        push(Value(true));
-                    }
-                    else
-                    {
-                        push(Value(false));
-                    }
+                    runtimeError("List index is not a number.");
+                    return InterpretResult::INTERPRET_RUNTIME_ERROR;
                 }
-                else if (isString(peek(0)) && isNumber(peek(1)))
+
+                const int idx = static_cast<int>(asNumber(pop()));
+                const Value item = pop();
+
+                if (isRange(item))
                 {
-                    ObjString* string = asString(peek(0));
-                    const double idx = asNumber(peek(1));
-                    if (idx >= 0 && idx < string->length)
-                    {
-                        pop();
-                        pop();
-                        push(Value(true));
-                    }
-                    else
-                    {
-                        pop();
-                        pop();
-                        push(Value(false));
-                    }
+                    ObjRange* range = asRange(item);
+                    push(Value(range->isInBounds(idx)));
+                }
+                else if (isList(item))
+                {
+                    ObjList* list = asList(item);
+                    push(Value(list->isInBounds(idx)));
+                }
+                else if (isString(item))
+                {
+                    ObjString* string = asString(item);
+                    const bool isInRange = idx >= 0 && idx < string->length;
+                    push(Value(isInRange));
                 }
                 else
                 {
@@ -1243,11 +1329,13 @@ bool VM::bindMethod(ObjInstance* instance, ObjString* name)
     Value method;
     if (!instance->klass->methods.get(name, &method))
     {
+        pop(); // Method name
+        push(Value()); // Nil
         return false;
     }
 
     ObjBoundMethod* bound = newBoundMethod(Value(instance), method);
-    pop();
+    pop(); // Method name
     push(Value(bound));
     return true;
 }

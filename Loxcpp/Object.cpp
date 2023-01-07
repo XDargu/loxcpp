@@ -113,6 +113,11 @@ ObjRange* newRange(double min, double max)
     return allocate<ObjRange>(min, max);
 }
 
+ObjList* newList()
+{
+    return allocate<ObjList>();
+}
+
 void printFunction(ObjFunction* function)
 {
     if (function->name == nullptr)
@@ -126,6 +131,17 @@ void printFunction(ObjFunction* function)
 void printRange(ObjRange* range)
 {
     std::cout << range->min << ".." << range->max;
+}
+
+void printList(ObjList* list)
+{
+    std::cout << "[";
+    for (const Value& value : list->items)
+    {
+        printValue(value);
+        std::cout << ", ";
+    }
+    std::cout << "]";
 }
 
 void printObject(const Value& value)
@@ -153,6 +169,9 @@ void printObject(const Value& value)
     case ObjType::RANGE:
         printRange(asRange(value));
         break;
+    case ObjType::LIST:
+        printList(asList(value));
+        break;
     case ObjType::CLASS:
         std::cout << asClass(value)->name->chars;
         break;
@@ -160,7 +179,7 @@ void printObject(const Value& value)
         std::cout << asInstance(value)->klass->name->chars << " instance";
         break;
     }
-    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 10, "Missing enum value");
 }
 
 size_t sizeOfObject(const Value& value)
@@ -187,10 +206,19 @@ size_t sizeOfObject(const Value& value)
             Value test(upvalue);
             upValuesSize += sizeOfObject(test);
         }
-        return sizeof(ObjClosure);
+        return sizeof(ObjClosure) + upValuesSize;
     }
     case ObjType::BOUND_METHOD: return sizeof(ObjBoundMethod);
     case ObjType::RANGE: return sizeof(ObjRange);
+    case ObjType::LIST:
+    {
+        size_t listElemsSize = 0;
+        for (const Value& listValue : asList(value)->items)
+        {
+            listElemsSize += sizeOf(listValue);
+        }
+        return sizeof(ObjList) + listElemsSize;
+    }
     case ObjType::CLASS: 
         return sizeof(ObjClass)
             + asClass(value)->methods.getSize()
@@ -198,26 +226,41 @@ size_t sizeOfObject(const Value& value)
     case ObjType::INSTANCE: return sizeof(ObjInstance) + asInstance(value)->fields.getSize();
     }
 
-    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
+    static_assert(static_cast<int>(ObjType::COUNT) == 10, "Missing enum value");
     return 0;
+}
+
+std::string objectAsStr(const Value& value)
+{
+    switch (getObjType(value))
+    {
+    case ObjType::STRING: return asString(value)->chars;
+    case ObjType::NATIVE: return "<native fn>";
+    case ObjType::FUNCTION: return "<" + asFunction(value)->name->chars + ">";
+    case ObjType::CLOSURE: return "<" + asClosure(value)->function->name->chars + ">";
+    case ObjType::BOUND_METHOD: return objectAsStr(asBoundMethod(value)->method);
+    case ObjType::RANGE: return std::to_string(asRange(value)->min) + ".." + std::to_string(asRange(value)->max);
+    case ObjType::LIST:
+    {
+        std::string list = "";
+        for (const Value& listValue : asList(value)->items)
+        {
+            list += objectAsStr(listValue);
+            list += ",";
+        }
+        return list;
+    }
+    case ObjType::CLASS: return "" + asClass(value)->name->chars;
+    case ObjType::INSTANCE: return asInstance(value)->klass->name->chars + " instance";
+    }
+
+    static_assert(static_cast<int>(ObjType::COUNT) == 10, "Missing enum value");
+    return "<Unknown>";
 }
 
 ObjString* objectAsString(const Value& value)
 {
-    switch (getObjType(value))
-    {
-        case ObjType::STRING: return asString(value);
-        case ObjType::NATIVE: return takeString("<native fn>", 11);
-        case ObjType::FUNCTION: return takeString("<" + asFunction(value)->name->chars + ">");
-        case ObjType::CLOSURE: return takeString("<" + asClosure(value)->function->name->chars + ">");
-        case ObjType::BOUND_METHOD: return objectAsString(asBoundMethod(value)->method);
-        case ObjType::RANGE: return takeString(std::to_string(asRange(value)->min) + ".." + std::to_string(asRange(value)->max));
-        case ObjType::CLASS: return takeString("" + asClass(value)->name->chars);
-        case ObjType::INSTANCE: return takeString(asInstance(value)->klass->name->chars + " instance");
-    }
-
-    static_assert(static_cast<int>(ObjType::COUNT) == 9, "Missing enum value");
-    return takeString("<Unknown>", 9);
+    return takeString(objectAsStr(value));
 }
 
 ObjString* concatenate(ObjString* a, ObjString* b)
