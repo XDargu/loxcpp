@@ -934,12 +934,6 @@ InterpretResult VM::run()
                 }
                 else
                 {
-                    if (!isList(source))
-                    {
-                        runtimeError("Cannot store value in a non-list.");
-                        return InterpretResult::INTERPRET_RUNTIME_ERROR;
-                    }
-
                     if (!isNumber(index))
                     {
                         runtimeError("List index is not a number.");
@@ -948,17 +942,52 @@ InterpretResult VM::run()
 
                     const int idx = static_cast<int>(asNumber(index));
 
-                    ObjList* list = asList(source);
-
-                    // TODO: Maybe just reserve more space in the list?
-                    if (!list->isInBounds(idx))
+                    if (isList(source))
                     {
-                        runtimeError("Invalid list index.");
+                        ObjList* list = asList(source);
+
+                        // TODO: Maybe just reserve more space in the list?
+                        if (!list->isInBounds(idx))
+                        {
+                            runtimeError("Invalid list index.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+
+                        list->setValue(idx, item);
+                        push(item);
+                    }
+                    else if (isString(source))
+                    {
+                        if(!isString(item))
+                        {
+                            runtimeError("You can only assign characters.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+
+                        ObjString* str = asString(source);
+                        ObjString* character = asString(item);
+
+                        if (character->chars.length() != 1)
+                        {
+                            runtimeError("Invalid string length.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+
+                        if (idx >= 0 && idx < str->length)
+                        {
+                            str->chars[idx] = character->chars[0];
+                        }
+                        else
+                        {
+                            runtimeError("Invalid string index.");
+                            return InterpretResult::INTERPRET_RUNTIME_ERROR;
+                        }
+                    }
+                    else
+                    {
+                        runtimeError("Cannot store value.");
                         return InterpretResult::INTERPRET_RUNTIME_ERROR;
                     }
-
-                    list->setValue(idx, item);
-                    push(item);
                 }
                 break;
             }

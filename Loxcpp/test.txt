@@ -42,7 +42,6 @@ print map(filter(nums, isEven), square);
 
 print reduce(nums, fun(n, acc){ return acc + n; }, 0);
 
-
 /*for i in 100..103
 {
     print "START" + i;
