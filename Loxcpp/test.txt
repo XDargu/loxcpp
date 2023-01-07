@@ -1,27 +1,47 @@
-fun hello()
-{
-    print "Hello World";
-}
-
 fun filter(list, f)
 {
     var fil = [];
     for elem in list
-    {
         if (f(elem))
             push(fil, elem);
-    }
 
     return fil;
 }
 
+fun map(list, f)
+{
+    var fil = [];
+    for elem in list
+        push(fil, f(elem));
+
+    return fil;
+}
+
+fun reduce(list, f, init)
+{
+    var accum = init;
+    for elem in list
+        accum = f(elem, accum);
+
+    return accum;
+}
+
+fun square(num) { return num * num; }
 fun isOdd(num) { return num % 2 != 0; }
-var nums = [1,2,3,4,5,6];
+fun isEven(num) { return num % 2 == 0; }
+var nums = 1..6;
 
 var oddNums = filter(nums, isOdd);
+var evenNums = filter(nums, isEven);
 
 print nums;
 print oddNums;
+print evenNums;
+
+print map(filter(nums, isEven), square);
+
+print reduce(nums, fun(n, acc){ return acc + n; }, 0);
+
 
 /*for i in 100..103
 {
