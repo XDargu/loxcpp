@@ -136,10 +136,13 @@ void printRange(ObjRange* range)
 void printList(ObjList* list)
 {
     std::cout << "[";
-    for (const Value& value : list->items)
+    const std::vector<Value>& items = list->items;
+    for (auto current = items.begin(); current != items.end();)
     {
-        printValue(value);
-        std::cout << ", ";
+        printValue(*current);
+
+        if (++current != items.end())
+            std::cout << ", ";
     }
     std::cout << "]";
 }
@@ -243,10 +246,13 @@ std::string objectAsStr(const Value& value)
     case ObjType::LIST:
     {
         std::string list = "";
-        for (const Value& listValue : asList(value)->items)
+        const std::vector<Value>& items = asList(value)->items;
+        for (auto current = items.begin(); current != items.end();)
         {
-            list += objectAsStr(listValue);
-            list += ",";
+            list += objectAsStr(*current);
+
+            if (++current != items.end())
+                list += ",";
         }
         return list;
     }
