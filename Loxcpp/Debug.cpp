@@ -193,7 +193,7 @@ size_t disassembleInstruction(const Chunk& chunk, size_t offset)
     case OpCode::OP_BUILD_RANGE:
         return simpleInstruction("OP_BUILD_RANGE", offset);
     case OpCode::OP_BUILD_LIST:
-        return simpleInstruction("OP_BUILD_LIST", offset);
+        return byteInstruction("OP_BUILD_LIST", chunk, offset);
     case OpCode::OP_INDEX_SUBSCR:
         return simpleInstruction("OP_INDEX_SUBSCR", offset);
     case OpCode::OP_STORE_SUBSCR:
