@@ -75,7 +75,7 @@ public:
 
 private:
 
-    InterpretResult run();
+    InterpretResult run(int depth);
     void resetStack();
     void runtimeError(const char* format, ...);
     void defineNative(const char* name, uint8_t arity, NativeFn function);

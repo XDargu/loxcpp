@@ -9,6 +9,8 @@
 #include "Value.h"
 #include "HashTable.h"
 
+class VM;
+
 enum class ObjType
 {
     STRING = 0,
@@ -167,7 +169,7 @@ struct ObjBoundMethod  : Obj
     Value method;
 };
 
-using NativeFn = Value(*)(int argCount, Value* args);
+using NativeFn = Value(*)(int argCount, Value* args, VM* vm);
 
 struct ObjNative : Obj
 {

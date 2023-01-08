@@ -18,6 +18,16 @@ bool isFalsey(Value value)
     return isNil(value) || (isBoolean(value) && !asBoolean(value));
 }
 
+bool isCallable(Value& value)
+{
+    return isClosure(value);
+}
+
+bool isIterable(Value& value)
+{
+    return isList(value) || isString(value) || isRange(value);
+}
+
 VM::VM()
     : stackTop(nullptr)
     , frames()
@@ -33,11 +43,11 @@ InterpretResult VM::interpret(const std::string& source)
     if (!nativesDefined)
     {
         nativesDefined = true;
-        defineNative("clock", 0, [](int argCount, Value* args)
+        defineNative("clock", 0, [](int argCount, Value* args, VM* vm)
         {
             return Value((double)clock() / CLOCKS_PER_SEC);
         });
-        defineNative("inBounds", 2, [](int argCount, Value* args)
+        defineNative("inBounds", 2, [](int argCount, Value* args, VM* vm)
         {
             if (!isNumber(args[1]))
                 return Value();
@@ -62,14 +72,14 @@ InterpretResult VM::interpret(const std::string& source)
 
             return Value();
         });
-        defineNative("readInput", 0, [](int argCount, Value* args)
+        defineNative("readInput", 0, [](int argCount, Value* args, VM* vm)
         {
             std::string line;
             std::getline(std::cin, line);
 
             return Value(takeString(line.c_str(), line.length()));
         });
-        defineNative("readFile", 1, [](int argCount, Value* args)
+        defineNative("readFile", 1, [](int argCount, Value* args, VM* vm)
         {
             if (isString(args[0]))
             {
@@ -83,7 +93,7 @@ InterpretResult VM::interpret(const std::string& source)
 
             return Value(takeString("", 0));
         });
-        defineNative("writeFile", 2, [](int argCount, Value* args)
+        defineNative("writeFile", 2, [](int argCount, Value* args, VM* vm)
         {
             if (isString(args[0]) && isString(args[1]))
             {
@@ -100,11 +110,11 @@ InterpretResult VM::interpret(const std::string& source)
 
             return Value();
         });
-        defineNative("sizeof", 1, [](int argCount, Value* args)
+        defineNative("sizeof", 1, [](int argCount, Value* args, VM* vm)
         {
             return Value((double)sizeOf(args[0]));
         });
-        defineNative("push", 2, [](int argCount, Value* args)
+        defineNative("push", 2, [](int argCount, Value* args, VM* vm)
         {
             if (!isList(args[0]))
             {
@@ -115,7 +125,7 @@ InterpretResult VM::interpret(const std::string& source)
             list->append(item);
             return Value(static_cast<double>(list->items.size()));
         });
-        defineNative("pop", 1, [](int argCount, Value* args)
+        defineNative("pop", 1, [](int argCount, Value* args, VM* vm)
         {
             if (!isList(args[0]))
             {
@@ -132,7 +142,7 @@ InterpretResult VM::interpret(const std::string& source)
             list->items.pop_back();
             return value;
         });
-        defineNative("erase", 2, [](int argCount, Value* args)
+        defineNative("erase", 2, [](int argCount, Value* args, VM* vm)
         {
             if (!isList(args[0]) || !isNumber(args[1]))
             {
@@ -149,6 +159,160 @@ InterpretResult VM::interpret(const std::string& source)
 
             list->deleteValue(index);
             return Value();
+        });
+        defineNative("map", 2, [](int argCount, Value* args, VM* vm)
+        {
+            if (!isIterable(args[0]) || !isCallable(args[1]))
+            {
+                return Value();
+            }
+            ObjList* mappedList = newList();
+
+            if (isRange(args[0]))
+            {
+                ObjRange* range = asRange(args[0]);
+
+                for (int idx=0; range->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(range->getValue(idx)));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    mappedList->append(vm->pop());
+                }
+            }
+            else if (isList(args[0]))
+            {
+                ObjList* list = asList(args[0]);
+                mappedList->items.reserve(list->items.size());
+                for (int idx = 0; list->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(list->getValue(idx));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    mappedList->append(vm->pop());
+                }
+            }
+            else if (isString(args[0]))
+            {
+                ObjString* str = asString(args[0]);
+                mappedList->items.reserve(str->chars.length());
+
+                for (char c : str->chars)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(takeString(&c, 1)));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    mappedList->append(vm->pop());
+                }
+            }
+
+            return Value(mappedList);
+        });
+        defineNative("filter", 2, [](int argCount, Value* args, VM* vm)
+        {
+            if (!isIterable(args[0]) || !isCallable(args[1]))
+            {
+                return Value();
+            }
+            ObjList* mappedList = newList();
+
+            if (isRange(args[0]))
+            {
+                ObjRange* range = asRange(args[0]);
+
+                for (int idx = 0; range->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(range->getValue(idx)));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    if (!isFalsey(vm->pop()))
+                        mappedList->append(Value(range->getValue(idx)));
+                }
+            }
+            else if (isList(args[0]))
+            {
+                ObjList* list = asList(args[0]);
+                for (int idx = 0; list->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(list->getValue(idx));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    if (!isFalsey(vm->pop()))
+                        mappedList->append(list->getValue(idx));
+                }
+            }
+            else if (isString(args[0]))
+            {
+                ObjString* str = asString(args[0]);
+                for (char c : str->chars)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(takeString(&c, 1)));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    if (!isFalsey(vm->pop()))
+                        mappedList->append(Value(takeString(&c, 1)));
+                }
+            }
+
+            return Value(mappedList);
+        });
+        defineNative("reduce", 3, [](int argCount, Value* args, VM* vm)
+        {
+            if (!isIterable(args[0]) || !isCallable(args[1]))
+            {
+                return Value();
+            }
+
+            Value accum = args[2];
+
+            if (isRange(args[0]))
+            {
+                ObjRange* range = asRange(args[0]);
+
+                for (int idx = 0; range->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(range->getValue(idx)));
+                    vm->push(accum);
+                    vm->callValue(args[1], 2);
+                    vm->run(vm->frameCount - 1);
+                    accum = vm->pop();
+                }
+            }
+            else if (isList(args[0]))
+            {
+                ObjList* list = asList(args[0]);
+                for (int idx = 0; list->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(list->getValue(idx));
+                    vm->push(accum);
+                    vm->callValue(args[1], 2);
+                    vm->run(vm->frameCount - 1);
+                    accum = vm->pop();
+                }
+            }
+            else if (isString(args[0]))
+            {
+                ObjString* str = asString(args[0]);
+                for (char c : str->chars)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(takeString(&c, 1)));
+                    vm->push(accum);
+                    vm->callValue(args[1], 2);
+                    vm->run(vm->frameCount - 1);
+                    accum = vm->pop();
+                }
+            }
+
+            return accum;
         });
 
         struct NativeMethodDef
@@ -188,14 +352,14 @@ InterpretResult VM::interpret(const std::string& source)
         // TODO: Maybe remove the ability to add/remove fields randomly to classes?
         defineNativeClass("Math",
         {
-            { "init", 0, [](int argCount, Value* args)
+            { "init", 0, [](int argCount, Value* args, VM* vm)
                 {
                     ObjInstance* this_ = asInstance(args[0]);
                     this_->fields.set(copyString("PI", 2), Value(3.14159265358979323846));
                     return Value(this_);
                 }
             },
-            { "abs", 1, [](int argCount, Value* args)
+            { "abs", 1, [](int argCount, Value* args, VM* vm)
                 {
                     ObjInstance* this_ = asInstance(args[0]);
                     if (isNumber(args[1]))
@@ -205,7 +369,7 @@ InterpretResult VM::interpret(const std::string& source)
                     return Value();
                 }
             },
-            { "min", 2, [](int argCount, Value* args)
+            { "min", 2, [](int argCount, Value* args, VM* vm)
                 {
                     ObjInstance* this_ = asInstance(args[0]);
                     if (isNumber(args[1]) && isNumber(args[2]))
@@ -228,7 +392,7 @@ InterpretResult VM::interpret(const std::string& source)
     push(Value(closure));
     call(closure, 0);
 
-    return run();
+    return run(0);
 }
 
 void VM::addObject(Obj* obj)
@@ -445,7 +609,7 @@ void VM::blackenObject(Obj* object)
     static_assert(static_cast<int>(ObjType::COUNT) == 10, "Missing enum value");
 }
 
-InterpretResult VM::run()
+InterpretResult VM::run(int depth)
 {
     CallFrame* frame = &frames[frameCount - 1];
 
@@ -1167,6 +1331,11 @@ InterpretResult VM::run()
                 stackTop = frame->slots;
                 push(result);
                 frame = &frames[frameCount - 1];
+
+                if (frameCount == depth)
+                {
+                    return InterpretResult::INTERPRET_OK;
+                }
                 break;
             }
             case OpCode::OP_CLASS:
@@ -1329,7 +1498,7 @@ bool VM::callValue(const Value& callee, uint8_t argCount)
                 return false;
             }
 
-            const Value result = native->function(argCount, stackTop - (native->isMethod ? argCount + 1 : argCount));
+            const Value result = native->function(argCount, stackTop - (native->isMethod ? argCount + 1 : argCount), this);
             stackTop -= argCount + 1;
             push(result);
             return true;
