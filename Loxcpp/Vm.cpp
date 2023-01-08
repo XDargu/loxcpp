@@ -160,6 +160,139 @@ InterpretResult VM::interpret(const std::string& source)
             list->deleteValue(index);
             return Value();
         });
+        defineNative("contains", 2, [](int argCount, Value* args, VM* vm)
+        {
+            if (!isList(args[0]))
+            {
+                return Value();
+            }
+
+            ObjList* list = asList(args[0]);
+
+            for (const Value& value : list->items)
+            {
+                if (value == args[1])
+                    return Value(true);
+            }
+
+            return Value(false);
+        });
+        defineNative("isList", 1, [](int argCount, Value* args, VM* vm)
+        {
+            return Value(isList(args[0]));
+        }),
+        defineNative("concat", 2, [](int argCount, Value* args, VM* vm)
+        {
+            if (!isList(args[0]) || !isList(args[1]))
+            {
+                return Value();
+            }
+
+            ObjList* left = asList(args[0]);
+            ObjList* right = asList(args[1]);
+
+            ObjList* concat = newList();
+
+            concat->items.reserve(left->items.size() + right->items.size());
+            std::copy(left->items.begin(), left->items.end(), std::back_inserter(concat->items));
+            std::copy(right->items.begin(), right->items.end(), std::back_inserter(concat->items));
+
+            return Value(concat);
+        });
+        defineNative("find", 2, [](int argCount, Value* args, VM* vm)
+        {
+            if (isRange(args[0]))
+            {
+                if (!isNumber(args[1]))
+                    return Value();
+
+                ObjRange* range = asRange(args[0]);
+
+                for (int idx = 0; range->isInBounds(idx); ++idx)
+                {
+                    if (asNumber(args[1]) == range->getValue(idx))
+                        return Value(range->getValue(idx));
+                }
+            }
+            else if (isList(args[0]))
+            {
+                ObjList* list = asList(args[0]);
+                for (const Value& value : list->items)
+                {
+                    if (value == args[1])
+                        return args[1];
+                }
+            }
+            else if (isString(args[0]))
+            {
+                if (!isString(args[1]))
+                    return Value();
+
+                if (asString(args[1])->chars.length() != 1)
+                    return Value();
+
+                ObjString* str = asString(args[0]);
+
+                for (char c : str->chars)
+                {
+                    if (c == *asString(args[1])->chars.begin())
+                        return args[1];
+                }
+            }
+
+            return Value();
+        });
+        defineNative("findIf", 2, [](int argCount, Value* args, VM* vm)
+        {
+            if (!isIterable(args[0]) || !isCallable(args[1]))
+            {
+                return Value();
+            }
+
+            if (isRange(args[0]))
+            {
+                ObjRange* range = asRange(args[0]);
+
+                for (int idx = 0; range->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(range->getValue(idx)));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    if (!isFalsey(vm->pop()))
+                        return Value(range->getValue(idx));
+                }
+            }
+            else if (isList(args[0]))
+            {
+                ObjList* list = asList(args[0]);
+                for (int idx = 0; list->isInBounds(idx); ++idx)
+                {
+                    vm->push(args[1]);
+                    vm->push(list->getValue(idx));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    if (!isFalsey(vm->pop()))
+                        return Value(list->getValue(idx));
+                }
+            }
+            else if (isString(args[0]))
+            {
+                ObjString* str = asString(args[0]);
+
+                for (char c : str->chars)
+                {
+                    vm->push(args[1]);
+                    vm->push(Value(takeString(&c, 1)));
+                    vm->callValue(args[1], 1);
+                    vm->run(vm->frameCount - 1);
+                    if (!isFalsey(vm->pop()))
+                        return Value(Value(takeString(&c, 1)));
+                }
+            }
+
+            return Value();
+        });
         defineNative("map", 2, [](int argCount, Value* args, VM* vm)
         {
             if (!isIterable(args[0]) || !isCallable(args[1]))
@@ -278,8 +411,8 @@ InterpretResult VM::interpret(const std::string& source)
                 for (int idx = 0; range->isInBounds(idx); ++idx)
                 {
                     vm->push(args[1]);
-                    vm->push(Value(range->getValue(idx)));
                     vm->push(accum);
+                    vm->push(Value(range->getValue(idx)));
                     vm->callValue(args[1], 2);
                     vm->run(vm->frameCount - 1);
                     accum = vm->pop();
@@ -291,8 +424,8 @@ InterpretResult VM::interpret(const std::string& source)
                 for (int idx = 0; list->isInBounds(idx); ++idx)
                 {
                     vm->push(args[1]);
-                    vm->push(list->getValue(idx));
                     vm->push(accum);
+                    vm->push(list->getValue(idx));
                     vm->callValue(args[1], 2);
                     vm->run(vm->frameCount - 1);
                     accum = vm->pop();
@@ -304,8 +437,8 @@ InterpretResult VM::interpret(const std::string& source)
                 for (char c : str->chars)
                 {
                     vm->push(args[1]);
-                    vm->push(Value(takeString(&c, 1)));
                     vm->push(accum);
+                    vm->push(Value(takeString(&c, 1)));
                     vm->callValue(args[1], 2);
                     vm->run(vm->frameCount - 1);
                     accum = vm->pop();
@@ -905,6 +1038,20 @@ InterpretResult VM::run(int depth)
                     const double b = asNumber(pop());
                     const double a = asNumber(pop());
                     push(Value(a + b));
+                }
+                else if (isList(peek(0)) && isList(peek(1)))
+                {
+                    ObjList* b = asList(peek(0));
+                    ObjList* a = asList(peek(1));
+
+                    ObjList* concat = newList();
+                    concat->items.reserve(a->items.size() + b->items.size());
+                    std::copy(a->items.begin(), a->items.end(), std::back_inserter(concat->items));
+                    std::copy(b->items.begin(), b->items.end(), std::back_inserter(concat->items));
+
+                    pop();
+                    pop();
+                    push(Value(concat));
                 }
                 else if (isString(peek(0)))
                 {
