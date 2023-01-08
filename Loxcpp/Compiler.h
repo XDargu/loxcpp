@@ -122,7 +122,7 @@ class Compiler
       ParseRule(&Compiler::variable,  nullptr,             Precedence::NONE),        // IDENTIFIER    // TODO
       ParseRule(&Compiler::string,    nullptr,             Precedence::NONE),        // STRING        
       ParseRule(&Compiler::number,    nullptr,             Precedence::NONE),        // NUMBER        
-      ParseRule(&Compiler::and_,      nullptr,             Precedence::NONE),        // AND           
+      ParseRule(nullptr,              &Compiler::and_,     Precedence::AND),         // AND           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // CLASS         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // ELSE          
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // FALSE         
@@ -130,7 +130,7 @@ class Compiler
       ParseRule(nullptr,              nullptr,             Precedence::RANGE),       // FOR           
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // IF            
       ParseRule(&Compiler::literal,   nullptr,             Precedence::NONE),        // NIL           
-      ParseRule(&Compiler::or_,       nullptr,             Precedence::NONE),        // OR            
+      ParseRule(nullptr,              &Compiler::or_,      Precedence::OR),          // OR            
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // PRINT         
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // RETURN        
       ParseRule(nullptr,              nullptr,             Precedence::NONE),        // SUPER         
