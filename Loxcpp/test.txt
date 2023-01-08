@@ -26,6 +26,53 @@ fun reduce(list, f, init)
     return accum;
 }
 
+class StopIteration {}
+
+class Iterator
+{
+    init(target, start)
+    {
+        this.index = start;
+        this.target = target;
+    }
+
+    next()
+    {
+        if (!inBounds(this.target, this.index))
+            return StopIteration;
+
+        const value = this.target[this.index];
+        this.index = this.index + 1;
+        return value;
+    }
+}
+
+fun forEach(range, f)
+{
+    for i in range
+        f(i);
+}
+
+print "hey";
+
+fun forEach2(range, f)
+{
+    var it = Iterator(range, 0);
+    var next = it.next();
+    while (next != StopIteration)
+    {
+        f(next);
+        next = it.next();
+    }
+}
+
+const rng = [1,2,nil,3,4];
+
+forEach(rng, fun(n){ print n; });
+forEach2(rng, fun(n){ print n; });
+
+print "------";
+
 fun square(num) { return num * num; }
 fun isOdd(num) { return num % 2 != 0; }
 fun isEven(num) { return num % 2 == 0; }

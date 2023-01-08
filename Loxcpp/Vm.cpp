@@ -37,29 +37,27 @@ InterpretResult VM::interpret(const std::string& source)
         {
             return Value((double)clock() / CLOCKS_PER_SEC);
         });
-        defineNative("rangeVal", 2, [](int argCount, Value* args)
+        defineNative("inBounds", 2, [](int argCount, Value* args)
         {
-            if (isRange(args[0]) && isNumber(args[1]))
+            if (!isNumber(args[1]))
+                return Value();
+
+            const int idx = static_cast<int>(asNumber(args[1]));
+
+            if (isRange(args[0]))
             {
                 ObjRange* range = asRange(args[0]);
-                const int idx = static_cast<int>(asNumber(args[1]));
-
-                if (range->isInBounds(idx))
-                {
-                    return Value(range->getValue(idx));
-                }
-            }
-
-            return Value();
-        });
-        defineNative("inRangeBounds", 2, [](int argCount, Value* args)
-        {
-            if (isRange(args[0]) && isNumber(args[1]))
-            {
-                ObjRange* range = asRange(args[0]);
-                const int idx = static_cast<int>(asNumber(args[1]));
-
                 return Value(range->isInBounds(idx));
+            }
+            else if (isList(args[0]))
+            {
+                ObjList* list = asList(args[0]);
+                return Value(list->isInBounds(idx));
+            }
+            else if (isString(args[0]))
+            {
+                ObjString* str = asString(args[0]);
+                return Value(idx >= 0 && idx < str->chars.length());
             }
 
             return Value();
@@ -117,14 +115,38 @@ InterpretResult VM::interpret(const std::string& source)
             list->append(item);
             return Value(static_cast<double>(list->items.size()));
         });
+        defineNative("pop", 1, [](int argCount, Value* args)
+        {
+            if (!isList(args[0]))
+            {
+                return Value();
+            }
+            ObjList* list = asList(args[0]);
+
+            if (list->items.size() == 0)
+            {
+                return Value();
+            }
+
+            Value value = *list->items.end();
+            list->items.pop_back();
+            return value;
+        });
         defineNative("erase", 2, [](int argCount, Value* args)
         {
             if (!isList(args[0]) || !isNumber(args[1]))
             {
                 return Value();
             }
+
             ObjList* list = asList(args[0]);
             const int index = static_cast<int>(asNumber(args[1]));
+
+            if (index < 0 || index >= list->items.size())
+            {
+                return Value();
+            }
+
             list->deleteValue(index);
             return Value();
         });
