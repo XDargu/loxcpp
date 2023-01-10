@@ -10,22 +10,77 @@
 #include "Debug.h"
 #include "Compiler.h"
 #include "Object.h"
+#include "Natives.h"
 
 constexpr int GC_HEAP_GROW_FACTOR = 2;
 
-bool isFalsey(Value value)
+bool isFalsey(const Value& value)
 {
     return isNil(value) || (isBoolean(value) && !asBoolean(value));
 }
 
-bool isCallable(Value& value)
+bool isCallable(const Value& value)
 {
     return isClosure(value);
 }
 
-bool isIterable(Value& value)
+bool isIterable(const Value& value)
 {
     return isList(value) || isString(value) || isRange(value);
+}
+
+template<typename F>
+void forEachIterable(const Value& iterable, F predicate)
+{
+    if (isRange(iterable))
+    {
+        ObjRange* range = asRange(iterable);
+        for (int idx = 0; range->isInBounds(idx); ++idx)
+        {
+            const Value element(range->getValue(idx));
+            if (!predicate(element, idx))
+                return;
+        }
+    }
+    else if (isList(iterable))
+    {
+        ObjList* list = asList(iterable);
+        for (int idx = 0; list->isInBounds(idx); ++idx)
+        {
+            const Value element(list->getValue(idx));
+            if (!predicate(element, idx))
+                return;
+        }
+    }
+    else if (isString(iterable))
+    {
+        ObjString* str = asString(iterable);
+        for (int idx = 0; idx < str->chars.size(); ++idx)
+        {
+            const Value element(takeString(&str->chars[idx], 1));
+            if (!predicate(element, idx))
+                return;
+        }
+    }
+}
+
+int pushArgs(VM* vm) { return 0;  }
+
+template<typename FirstArg, typename... Args>
+int pushArgs(VM* vm, const FirstArg& firstValue, const Args&... values)
+{
+    vm->push(firstValue);
+    return pushArgs(vm, values...) + 1;
+}
+
+template<typename... Args>
+Value callFunction(VM* vm, const Value& callable, const Args&... values)
+{
+    vm->push(callable);
+    const int argCount = pushArgs(vm, values...);
+    vm->callValue(callable, argCount);
+    vm->run(vm->getFrameCount() - 1);
+    return vm->pop();
 }
 
 VM::VM()
@@ -43,10 +98,7 @@ InterpretResult VM::interpret(const std::string& source)
     if (!nativesDefined)
     {
         nativesDefined = true;
-        defineNative("clock", 0, [](int argCount, Value* args, VM* vm)
-        {
-            return Value((double)clock() / CLOCKS_PER_SEC);
-        });
+        registerNatives(this);
         defineNative("inBounds", 2, [](int argCount, Value* args, VM* vm)
         {
             if (!isNumber(args[1]))
@@ -199,8 +251,13 @@ InterpretResult VM::interpret(const std::string& source)
 
             return Value(concat);
         });
-        defineNative("find", 2, [](int argCount, Value* args, VM* vm)
+        defineNative("indexOf", 2, [](int argCount, Value* args, VM* vm)
         {
+            if (!isIterable(args[0]))
+            {
+                return Value();
+            }
+
             if (isRange(args[0]))
             {
                 if (!isNumber(args[1]))
@@ -211,16 +268,16 @@ InterpretResult VM::interpret(const std::string& source)
                 for (int idx = 0; range->isInBounds(idx); ++idx)
                 {
                     if (asNumber(args[1]) == range->getValue(idx))
-                        return Value(range->getValue(idx));
+                        return Value(static_cast<double>(idx));
                 }
             }
             else if (isList(args[0]))
             {
                 ObjList* list = asList(args[0]);
-                for (const Value& value : list->items)
+                for (int idx = 0; list->isInBounds(idx); ++idx)
                 {
-                    if (value == args[1])
-                        return args[1];
+                    if (list->getValue(idx) == args[1])
+                        return Value(static_cast<double>(idx));
                 }
             }
             else if (isString(args[0]))
@@ -233,10 +290,10 @@ InterpretResult VM::interpret(const std::string& source)
 
                 ObjString* str = asString(args[0]);
 
-                for (char c : str->chars)
+                for (int idx = 0; idx < str->chars.size(); ++idx)
                 {
-                    if (c == *asString(args[1])->chars.begin())
-                        return args[1];
+                    if (str->chars[idx] == *asString(args[1])->chars.begin())
+                        return Value(static_cast<double>(idx));
                 }
             }
 
@@ -249,49 +306,19 @@ InterpretResult VM::interpret(const std::string& source)
                 return Value();
             }
 
-            if (isRange(args[0]))
-            {
-                ObjRange* range = asRange(args[0]);
+            Value foundResult;
 
-                for (int idx = 0; range->isInBounds(idx); ++idx)
-                {
-                    vm->push(args[1]);
-                    vm->push(Value(range->getValue(idx)));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    if (!isFalsey(vm->pop()))
-                        return Value(range->getValue(idx));
-                }
-            }
-            else if (isList(args[0]))
+            forEachIterable(args[0], [&](const Value& element, int idx)
             {
-                ObjList* list = asList(args[0]);
-                for (int idx = 0; list->isInBounds(idx); ++idx)
+                if (!isFalsey(callFunction(vm, args[1], element)))
                 {
-                    vm->push(args[1]);
-                    vm->push(list->getValue(idx));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    if (!isFalsey(vm->pop()))
-                        return Value(list->getValue(idx));
+                    foundResult = element;
+                    return false;
                 }
-            }
-            else if (isString(args[0]))
-            {
-                ObjString* str = asString(args[0]);
+                return true;
+            });
 
-                for (char c : str->chars)
-                {
-                    vm->push(args[1]);
-                    vm->push(Value(takeString(&c, 1)));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    if (!isFalsey(vm->pop()))
-                        return Value(Value(takeString(&c, 1)));
-                }
-            }
-
-            return Value();
+            return foundResult;
         });
         defineNative("map", 2, [](int argCount, Value* args, VM* vm)
         {
@@ -301,46 +328,11 @@ InterpretResult VM::interpret(const std::string& source)
             }
             ObjList* mappedList = newList();
 
-            if (isRange(args[0]))
+            forEachIterable(args[0], [&](const Value& element, int idx)
             {
-                ObjRange* range = asRange(args[0]);
-
-                for (int idx=0; range->isInBounds(idx); ++idx)
-                {
-                    vm->push(args[1]);
-                    vm->push(Value(range->getValue(idx)));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    mappedList->append(vm->pop());
-                }
-            }
-            else if (isList(args[0]))
-            {
-                ObjList* list = asList(args[0]);
-                mappedList->items.reserve(list->items.size());
-                for (int idx = 0; list->isInBounds(idx); ++idx)
-                {
-                    vm->push(args[1]);
-                    vm->push(list->getValue(idx));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    mappedList->append(vm->pop());
-                }
-            }
-            else if (isString(args[0]))
-            {
-                ObjString* str = asString(args[0]);
-                mappedList->items.reserve(str->chars.length());
-
-                for (char c : str->chars)
-                {
-                    vm->push(args[1]);
-                    vm->push(Value(takeString(&c, 1)));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    mappedList->append(vm->pop());
-                }
-            }
+                mappedList->append(callFunction(vm, args[1], element));
+                return true;
+            });
 
             return Value(mappedList);
         });
@@ -350,48 +342,17 @@ InterpretResult VM::interpret(const std::string& source)
             {
                 return Value();
             }
+
             ObjList* mappedList = newList();
 
-            if (isRange(args[0]))
+            forEachIterable(args[0], [&](const Value& element, int idx)
             {
-                ObjRange* range = asRange(args[0]);
-
-                for (int idx = 0; range->isInBounds(idx); ++idx)
+                if (!isFalsey(callFunction(vm, args[1], element)))
                 {
-                    vm->push(args[1]);
-                    vm->push(Value(range->getValue(idx)));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    if (!isFalsey(vm->pop()))
-                        mappedList->append(Value(range->getValue(idx)));
+                    mappedList->append(element);
                 }
-            }
-            else if (isList(args[0]))
-            {
-                ObjList* list = asList(args[0]);
-                for (int idx = 0; list->isInBounds(idx); ++idx)
-                {
-                    vm->push(args[1]);
-                    vm->push(list->getValue(idx));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    if (!isFalsey(vm->pop()))
-                        mappedList->append(list->getValue(idx));
-                }
-            }
-            else if (isString(args[0]))
-            {
-                ObjString* str = asString(args[0]);
-                for (char c : str->chars)
-                {
-                    vm->push(args[1]);
-                    vm->push(Value(takeString(&c, 1)));
-                    vm->callValue(args[1], 1);
-                    vm->run(vm->frameCount - 1);
-                    if (!isFalsey(vm->pop()))
-                        mappedList->append(Value(takeString(&c, 1)));
-                }
-            }
+                return true;
+            });
 
             return Value(mappedList);
         });
@@ -404,46 +365,11 @@ InterpretResult VM::interpret(const std::string& source)
 
             Value accum = args[2];
 
-            if (isRange(args[0]))
+            forEachIterable(args[0], [&](const Value& element, int idx)
             {
-                ObjRange* range = asRange(args[0]);
-
-                for (int idx = 0; range->isInBounds(idx); ++idx)
-                {
-                    vm->push(args[1]);
-                    vm->push(accum);
-                    vm->push(Value(range->getValue(idx)));
-                    vm->callValue(args[1], 2);
-                    vm->run(vm->frameCount - 1);
-                    accum = vm->pop();
-                }
-            }
-            else if (isList(args[0]))
-            {
-                ObjList* list = asList(args[0]);
-                for (int idx = 0; list->isInBounds(idx); ++idx)
-                {
-                    vm->push(args[1]);
-                    vm->push(accum);
-                    vm->push(list->getValue(idx));
-                    vm->callValue(args[1], 2);
-                    vm->run(vm->frameCount - 1);
-                    accum = vm->pop();
-                }
-            }
-            else if (isString(args[0]))
-            {
-                ObjString* str = asString(args[0]);
-                for (char c : str->chars)
-                {
-                    vm->push(args[1]);
-                    vm->push(accum);
-                    vm->push(Value(takeString(&c, 1)));
-                    vm->callValue(args[1], 2);
-                    vm->run(vm->frameCount - 1);
-                    accum = vm->pop();
-                }
-            }
+                accum = callFunction(vm, args[1], accum, element);
+                return true;
+            });
 
             return accum;
         });

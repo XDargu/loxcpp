@@ -144,6 +144,7 @@
     <ClCompile Include="Debug.cpp" />
     <ClCompile Include="HashTable.cpp" />
     <ClCompile Include="Loxcpp.cpp" />
+    <ClCompile Include="Natives.cpp" />
     <ClCompile Include="Object.cpp" />
     <ClCompile Include="Scanner.cpp" />
     <ClCompile Include="Value.cpp" />
@@ -156,6 +157,7 @@
     <ClInclude Include="Debug.h" />
     <ClInclude Include="HashTable.h" />
     <ClInclude Include="Memory.h" />
+    <ClInclude Include="Natives.h" />
     <ClInclude Include="Object.h" />
     <ClInclude Include="Scanner.h" />
     <ClInclude Include="Value.h" />

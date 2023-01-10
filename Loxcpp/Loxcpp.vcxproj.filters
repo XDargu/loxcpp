@@ -42,6 +42,9 @@
     <ClCompile Include="Chunk.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Natives.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common.h">
@@ -72,6 +75,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HashTable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Natives.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

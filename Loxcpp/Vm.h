@@ -73,19 +73,22 @@ public:
     Value pop();
     Value peek(int distance);
 
-private:
+    bool callValue(const Value& callee, uint8_t argCount);
 
     InterpretResult run(int depth);
-    void resetStack();
-    void runtimeError(const char* format, ...);
+
+    size_t getFrameCount() const { return frameCount; }
+
     void defineNative(const char* name, uint8_t arity, NativeFn function);
 
-    bool validateBinaryOperator();
+private:
 
+    void resetStack();
+    void runtimeError(const char* format, ...);
+    bool validateBinaryOperator();
     void concatenate();
 
     bool call(ObjClosure* closure, uint8_t argCount);
-    bool callValue(const Value& callee, uint8_t argCount);
     bool invokeFromClass(ObjClass* klass, ObjString* name, uint8_t argCount);
     bool invoke(ObjString* name, uint8_t argCount);
     bool bindMethod(ObjInstance* instance, ObjString* name);
