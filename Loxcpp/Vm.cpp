@@ -1292,6 +1292,23 @@ InterpretResult VM::run(int depth)
             }
             case OpCode::OP_PRINT:
             {
+                Value val = peek(0);
+                if (isInstance(val))
+                {
+                    ObjInstance* instance = asInstance(val);
+                    ObjString* toStr = takeString("toString");
+                    
+                    Value method;
+                    if (instance->klass->methods.get(toStr, &method))
+                    {
+                        pop();
+                        push(Value(toStr));
+                        bindMethod(instance, toStr);
+                        // Here stack is [instance, boundMethod]
+                        push(callFunction(this, pop()));
+                    }
+                }
+
                 printValue(pop());
                 printf("\n");
                 break;
