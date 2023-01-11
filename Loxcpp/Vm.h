@@ -77,7 +77,7 @@ public:
 
     void push(Value value);
     Value pop();
-    Value peek(int distance);
+    Value& peek(int distance);
 
     bool callValue(const Value& callee, uint8_t argCount);
 
@@ -102,6 +102,8 @@ private:
     ObjUpvalue* captureUpvalue(Value* local);
     void closeUpvalues(Value* last);
     void defineMethod(ObjString* name);
+
+    Value instanceToString(Value& instanceVal);
 
     static constexpr size_t STACK_MAX = 256;
     static constexpr size_t FRAMES_MAX = 255;

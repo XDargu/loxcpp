@@ -605,6 +605,20 @@ InterpretResult VM::run(int depth)
                 }
                 else if (isString(peek(0)))
                 {
+                    if (isInstance(peek(1)))
+                    {
+                        const Value str = instanceToString(peek(1));
+                        if (isString(str))
+                        {
+                            ObjString* a = asString(peek(0));
+                            ObjString* result = ::concatenate(asString(str), a);
+
+                            pop();
+                            push(Value(result));
+                            break;
+                        }
+                    }
+
                     ObjString* a = asString(peek(0));
                     ObjString* val = valueAsString(peek(1));  // TODO: This allocates memory!
                     
@@ -617,6 +631,20 @@ InterpretResult VM::run(int depth)
                 }
                 else if (isString(peek(1)))
                 {
+                    if (isInstance(peek(0)))
+                    {
+                        const Value str = instanceToString(peek(0));
+                        if (isString(str))
+                        {
+                            ObjString* b = asString(peek(1));
+                            ObjString* result = ::concatenate(b, asString(str));
+
+                            pop();
+                            push(Value(result));
+                            break;
+                        }
+                    }
+
                     ObjString* val = valueAsString(peek(0)); // TODO: This allocates memory!
                     ObjString* b = asString(peek(1));
 
@@ -916,22 +944,11 @@ InterpretResult VM::run(int depth)
             }
             case OpCode::OP_PRINT:
             {
-                /*Value val = peek(0);
-                if (isInstance(val))
+                if (isInstance(peek(0)))
                 {
-                    ObjInstance* instance = asInstance(val);
-                    ObjString* toStr = takeString("toString");
-                    
-                    Value method;
-                    if (instance->klass->methods.get(toStr, &method))
-                    {
-                        // Bind method pops the instance, we need to push it again
-                        push(val);
-                        bindMethod(instance, toStr); 
-                        // Here stack is [instance, boundMethod]
-                        push(callFunction(this, pop()));
-                    }
-                }*/
+                    const Value str = instanceToString(peek(0));
+                    push(str);
+                }
 
                 printValue(pop());
                 printf("\n");
@@ -1172,7 +1189,7 @@ Value VM::pop()
     return *stackTop;
 }
 
-Value VM::peek(int distance)
+Value& VM::peek(int distance)
 {
     return stackTop[-1 - distance];
 }
@@ -1354,4 +1371,26 @@ void VM::defineMethod(ObjString* name)
         klass->methods.set(name, method);
     }
     pop();
+}
+
+Value VM::instanceToString(Value& instanceVal)
+{
+    // Consumes the instance!
+    if (isInstance(instanceVal))
+    {
+        ObjInstance* instance = asInstance(instanceVal);
+        ObjString* toStr = takeString("toString");
+
+        Value method;
+        if (instance->klass->methods.get(toStr, &method))
+        {
+            // Bind method pops the instance, we need to push it again
+            push(instanceVal);
+            bindMethod(instance, toStr);
+            // Here stack is [instance, boundMethod]
+            return callFunction(this, pop());
+        }
+    }
+
+    return Value();
 }
