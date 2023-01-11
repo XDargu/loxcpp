@@ -30,6 +30,12 @@ struct CallFrame
     Value* slots = nullptr;
 };
 
+struct NativeMethodDef
+{
+    const char* name;
+    int arity;
+    NativeFn function;
+};
 
 class VM
 {
@@ -80,6 +86,7 @@ public:
     size_t getFrameCount() const { return frameCount; }
 
     void defineNative(const char* name, uint8_t arity, NativeFn function);
+    void defineNativeClass(const char* name, std::vector<NativeMethodDef>&& methods);;
 
 private:
 

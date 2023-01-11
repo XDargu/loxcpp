@@ -8,80 +8,10 @@
 #include <time.h>
 
 #include "Debug.h"
-#include "Compiler.h"
-#include "Object.h"
 #include "Natives.h"
+#include "VMUtils.h"
 
 constexpr int GC_HEAP_GROW_FACTOR = 2;
-
-bool isFalsey(const Value& value)
-{
-    return isNil(value) || (isBoolean(value) && !asBoolean(value));
-}
-
-bool isCallable(const Value& value)
-{
-    return isClosure(value);
-}
-
-bool isIterable(const Value& value)
-{
-    return isList(value) || isString(value) || isRange(value);
-}
-
-template<typename F>
-void forEachIterable(const Value& iterable, F predicate)
-{
-    if (isRange(iterable))
-    {
-        ObjRange* range = asRange(iterable);
-        for (int idx = 0; range->isInBounds(idx); ++idx)
-        {
-            const Value element(range->getValue(idx));
-            if (!predicate(element, idx))
-                return;
-        }
-    }
-    else if (isList(iterable))
-    {
-        ObjList* list = asList(iterable);
-        for (int idx = 0; list->isInBounds(idx); ++idx)
-        {
-            const Value element(list->getValue(idx));
-            if (!predicate(element, idx))
-                return;
-        }
-    }
-    else if (isString(iterable))
-    {
-        ObjString* str = asString(iterable);
-        for (int idx = 0; idx < str->chars.size(); ++idx)
-        {
-            const Value element(takeString(&str->chars[idx], 1));
-            if (!predicate(element, idx))
-                return;
-        }
-    }
-}
-
-int pushArgs(VM* vm) { return 0;  }
-
-template<typename FirstArg, typename... Args>
-int pushArgs(VM* vm, const FirstArg& firstValue, const Args&... values)
-{
-    vm->push(firstValue);
-    return pushArgs(vm, values...) + 1;
-}
-
-template<typename... Args>
-Value callFunction(VM* vm, const Value& callable, const Args&... values)
-{
-    vm->push(callable);
-    const int argCount = pushArgs(vm, values...);
-    vm->callValue(callable, argCount);
-    vm->run(vm->getFrameCount() - 1);
-    return vm->pop();
-}
 
 VM::VM()
     : stackTop(nullptr)
@@ -99,312 +29,6 @@ InterpretResult VM::interpret(const std::string& source)
     {
         nativesDefined = true;
         registerNatives(this);
-        defineNative("inBounds", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isNumber(args[1]))
-                return Value();
-
-            const int idx = static_cast<int>(asNumber(args[1]));
-
-            if (isRange(args[0]))
-            {
-                ObjRange* range = asRange(args[0]);
-                return Value(range->isInBounds(idx));
-            }
-            else if (isList(args[0]))
-            {
-                ObjList* list = asList(args[0]);
-                return Value(list->isInBounds(idx));
-            }
-            else if (isString(args[0]))
-            {
-                ObjString* str = asString(args[0]);
-                return Value(idx >= 0 && idx < str->chars.length());
-            }
-
-            return Value();
-        });
-        defineNative("readInput", 0, [](int argCount, Value* args, VM* vm)
-        {
-            std::string line;
-            std::getline(std::cin, line);
-
-            return Value(takeString(line.c_str(), line.length()));
-        });
-        defineNative("readFile", 1, [](int argCount, Value* args, VM* vm)
-        {
-            if (isString(args[0]))
-            {
-                ObjString* fileName = asString(args[0]);
-                std::ifstream fileStream(fileName->chars);
-                std::stringstream buffer;
-                buffer << fileStream.rdbuf();
-                fileStream.close();
-                return Value(takeString(buffer.str().c_str(), buffer.str().length()));
-            }
-
-            return Value(takeString("", 0));
-        });
-        defineNative("writeFile", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (isString(args[0]) && isString(args[1]))
-            {
-                ObjString* fileName = asString(args[0]);
-                ObjString* content = asString(args[1]);
-
-                std::ofstream fileStream(fileName->chars.c_str());
-                if (fileStream.is_open())
-                {
-                    fileStream.write(content->chars.c_str(), content->chars.length());
-                }
-                fileStream.close();
-            }
-
-            return Value();
-        });
-        defineNative("sizeof", 1, [](int argCount, Value* args, VM* vm)
-        {
-            return Value((double)sizeOf(args[0]));
-        });
-        defineNative("push", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isList(args[0]))
-            {
-                return Value();
-            }
-            ObjList* list = asList(args[0]);
-            Value item = args[1];
-            list->append(item);
-            return Value(static_cast<double>(list->items.size()));
-        });
-        defineNative("pop", 1, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isList(args[0]))
-            {
-                return Value();
-            }
-            ObjList* list = asList(args[0]);
-
-            if (list->items.size() == 0)
-            {
-                return Value();
-            }
-
-            Value value = *list->items.end();
-            list->items.pop_back();
-            return value;
-        });
-        defineNative("erase", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isList(args[0]) || !isNumber(args[1]))
-            {
-                return Value();
-            }
-
-            ObjList* list = asList(args[0]);
-            const int index = static_cast<int>(asNumber(args[1]));
-
-            if (index < 0 || index >= list->items.size())
-            {
-                return Value();
-            }
-
-            list->deleteValue(index);
-            return Value();
-        });
-        defineNative("contains", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isList(args[0]))
-            {
-                return Value();
-            }
-
-            ObjList* list = asList(args[0]);
-
-            for (const Value& value : list->items)
-            {
-                if (value == args[1])
-                    return Value(true);
-            }
-
-            return Value(false);
-        });
-        defineNative("isList", 1, [](int argCount, Value* args, VM* vm)
-        {
-            return Value(isList(args[0]));
-        }),
-        defineNative("concat", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isList(args[0]) || !isList(args[1]))
-            {
-                return Value();
-            }
-
-            ObjList* left = asList(args[0]);
-            ObjList* right = asList(args[1]);
-
-            ObjList* concat = newList();
-
-            concat->items.reserve(left->items.size() + right->items.size());
-            std::copy(left->items.begin(), left->items.end(), std::back_inserter(concat->items));
-            std::copy(right->items.begin(), right->items.end(), std::back_inserter(concat->items));
-
-            return Value(concat);
-        });
-        defineNative("indexOf", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isIterable(args[0]))
-            {
-                return Value();
-            }
-
-            if (isRange(args[0]))
-            {
-                if (!isNumber(args[1]))
-                    return Value();
-
-                ObjRange* range = asRange(args[0]);
-
-                for (int idx = 0; range->isInBounds(idx); ++idx)
-                {
-                    if (asNumber(args[1]) == range->getValue(idx))
-                        return Value(static_cast<double>(idx));
-                }
-            }
-            else if (isList(args[0]))
-            {
-                ObjList* list = asList(args[0]);
-                for (int idx = 0; list->isInBounds(idx); ++idx)
-                {
-                    if (list->getValue(idx) == args[1])
-                        return Value(static_cast<double>(idx));
-                }
-            }
-            else if (isString(args[0]))
-            {
-                if (!isString(args[1]))
-                    return Value();
-
-                if (asString(args[1])->chars.length() != 1)
-                    return Value();
-
-                ObjString* str = asString(args[0]);
-
-                for (int idx = 0; idx < str->chars.size(); ++idx)
-                {
-                    if (str->chars[idx] == *asString(args[1])->chars.begin())
-                        return Value(static_cast<double>(idx));
-                }
-            }
-
-            return Value();
-        });
-        defineNative("findIf", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isIterable(args[0]) || !isCallable(args[1]))
-            {
-                return Value();
-            }
-
-            Value foundResult;
-
-            forEachIterable(args[0], [&](const Value& element, int idx)
-            {
-                if (!isFalsey(callFunction(vm, args[1], element)))
-                {
-                    foundResult = element;
-                    return false;
-                }
-                return true;
-            });
-
-            return foundResult;
-        });
-        defineNative("map", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isIterable(args[0]) || !isCallable(args[1]))
-            {
-                return Value();
-            }
-            ObjList* mappedList = newList();
-
-            forEachIterable(args[0], [&](const Value& element, int idx)
-            {
-                mappedList->append(callFunction(vm, args[1], element));
-                return true;
-            });
-
-            return Value(mappedList);
-        });
-        defineNative("filter", 2, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isIterable(args[0]) || !isCallable(args[1]))
-            {
-                return Value();
-            }
-
-            ObjList* mappedList = newList();
-
-            forEachIterable(args[0], [&](const Value& element, int idx)
-            {
-                if (!isFalsey(callFunction(vm, args[1], element)))
-                {
-                    mappedList->append(element);
-                }
-                return true;
-            });
-
-            return Value(mappedList);
-        });
-        defineNative("reduce", 3, [](int argCount, Value* args, VM* vm)
-        {
-            if (!isIterable(args[0]) || !isCallable(args[1]))
-            {
-                return Value();
-            }
-
-            Value accum = args[2];
-
-            forEachIterable(args[0], [&](const Value& element, int idx)
-            {
-                accum = callFunction(vm, args[1], accum, element);
-                return true;
-            });
-
-            return accum;
-        });
-
-        struct NativeMethodDef
-        {
-            const char* name;
-            int arity;
-            NativeFn function;
-        };
-
-        auto defineNativeClass = [this](const char* name, std::vector<NativeMethodDef>&& methods)
-        {
-            // Native Class Test
-            push(Value(copyString(name, (int)strlen(name))));
-            push(Value(newClass(asString(stack[0]))));
-
-            for (const NativeMethodDef& method : methods)
-            {
-                push(Value(copyString(method.name, (int)strlen(method.name))));
-                push(Value(newNative(method.arity, method.function, true)));
-
-                if (strcmp(method.name, "init") == 0)
-                    asClass(stack[1])->initializer = peek(0);
-                else
-                    asClass(stack[1])->methods.set(asString(peek(1)), peek(0));
-
-                pop();
-                pop();
-            }
-
-            globals.set(asString(peek(1)), peek(0));
-            pop();
-            pop();
-        };
 
         // TODO: Add support for static functions and properties
         // TODO: Add support for defining properties in a class
@@ -832,11 +456,10 @@ InterpretResult VM::run(int depth)
                 ObjInstance* instance = asInstance(peek(0));
                 ObjString* name = readString();
 
-                pop(); // Instance.
-
                 Value value;
                 if (instance->fields.get(name, &value))
                 {
+                    pop(); // Instance.
                     push(value);
                     break;
                 }
@@ -846,6 +469,7 @@ InterpretResult VM::run(int depth)
                     break;
                 }
 
+                pop(); // Instance.
                 push(Value()); // Nil
                 break;
             }
@@ -860,11 +484,10 @@ InterpretResult VM::run(int depth)
                 ObjInstance* instance = asInstance(peek(0));
                 ObjString* name = readStringLong();
 
-                pop(); // Instance.
-
                 Value value;
                 if (instance->fields.get(name, &value))
                 {
+                    pop(); // Instance.
                     push(value);
                     break;
                 }
@@ -874,6 +497,7 @@ InterpretResult VM::run(int depth)
                     break;
                 }
 
+                pop(); // Instance.
                 push(Value()); // Nil
                 break;
             }
@@ -1107,7 +731,7 @@ InterpretResult VM::run(int depth)
                         break;
                     }
 
-                    push(index); // bind method will pop this
+                    push(source); // Bound method pops an instance and pushes the item
                     if (bindMethod(instance, name))
                     {
                         break;
@@ -1292,7 +916,7 @@ InterpretResult VM::run(int depth)
             }
             case OpCode::OP_PRINT:
             {
-                Value val = peek(0);
+                /*Value val = peek(0);
                 if (isInstance(val))
                 {
                     ObjInstance* instance = asInstance(val);
@@ -1301,13 +925,13 @@ InterpretResult VM::run(int depth)
                     Value method;
                     if (instance->klass->methods.get(toStr, &method))
                     {
-                        pop();
-                        push(Value(toStr));
-                        bindMethod(instance, toStr);
+                        // Bind method pops the instance, we need to push it again
+                        push(val);
+                        bindMethod(instance, toStr); 
                         // Here stack is [instance, boundMethod]
                         push(callFunction(this, pop()));
                     }
-                }
+                }*/
 
                 printValue(pop());
                 printf("\n");
@@ -1479,11 +1103,36 @@ inline void VM::runtimeError(const char* format, ...)
     resetStack();
 }
 
-inline void VM::defineNative(const char* name, uint8_t arity, NativeFn function)
+void VM::defineNative(const char* name, uint8_t arity, NativeFn function)
 {
     push(Value(copyString(name, (int)strlen(name))));
     push(Value(newNative(arity, function, false)));
     globals.set(asString(stack[0]), stack[1]);
+    pop();
+    pop();
+}
+
+void VM::defineNativeClass(const char* name, std::vector<NativeMethodDef>&& methods)
+{
+    // Native Class Test
+    push(Value(copyString(name, (int)strlen(name))));
+    push(Value(newClass(asString(stack[0]))));
+
+    for (const NativeMethodDef& method : methods)
+    {
+        push(Value(copyString(method.name, (int)strlen(method.name))));
+        push(Value(newNative(method.arity, method.function, true)));
+
+        if (strcmp(method.name, "init") == 0)
+            asClass(stack[1])->initializer = peek(0);
+        else
+            asClass(stack[1])->methods.set(asString(peek(1)), peek(0));
+
+        pop();
+        pop();
+    }
+
+    globals.set(asString(peek(1)), peek(0));
     pop();
     pop();
 }
@@ -1639,13 +1288,13 @@ bool VM::bindMethod(ObjInstance* instance, ObjString* name)
     Value method;
     if (!instance->klass->methods.get(name, &method))
     {
-        pop(); // Method name
+        pop(); // ObJinstance
         push(Value()); // Nil
         return false;
     }
 
     ObjBoundMethod* bound = newBoundMethod(Value(instance), method);
-    pop(); // Method name
+    pop(); // ObJinstance
     push(Value(bound));
     return true;
 }

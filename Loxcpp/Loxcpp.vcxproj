@@ -162,6 +162,7 @@
     <ClInclude Include="Scanner.h" />
     <ClInclude Include="Value.h" />
     <ClInclude Include="Vm.h" />
+    <ClInclude Include="VMUtils.h" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="Ideas.txt" />
