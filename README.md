@@ -203,30 +203,30 @@ for i in 1..20
 There are a bunch of natives or built-in functions in LoxCpp. Without entering in too much detail, since they are subjet to change at this point, they are the following:
 
 ### Basic
-**clock:** returns the current value of the clock, good for performance measuring.
-**sizeOf:** returns the size of an object.
+- **clock:** returns the current value of the clock, good for performance measuring.
+- **sizeOf:** returns the size of an object.
 
 ### Types
-**isList:** returns if a value is a list.
-**inBounds:** returns if a value is within the bounds of a list or range.
+- **isList:** returns if a value is a list.
+- **inBounds:** returns if a value is within the bounds of a list or range.
 
 ### IO
-**readInput:** reads the user input.
-**readFile:** returns the content of a file.
-**writeFile:** writes a string to a file.
+- **readInput:** reads the user input.
+- **readFile:** returns the content of a file.
+- **writeFile:** writes a string to a file.
 
 ### Lists
-**push:** pushes a value to the back of a list.
-**pop:** removes the value at the back of a list and returns it.
-**erase:** removes a value of a list given an index.
-**concat:** concatenates two lists.
+- **push:** pushes a value to the back of a list.
+- **pop:** removes the value at the back of a list and returns it.
+- **erase:** removes a value of a list given an index.
+- **concat:** concatenates two lists.
 
 ### Iterables
 Iterables are lists, ranges and strings.
 
-**contains:** checks if an iterable contains a value.
-**indexOf:** fins a value on a an iterable and returns its index, or nil.
-**findIf:** finds a value on an iterable given a function. Returns the value or nil.
-**map:** standar map function.
-**filter:** standard filter function.
-**reduce:** standard reduce function.
+- **contains:** checks if an iterable contains a value.
+- **indexOf:** fins a value on a an iterable and returns its index, or nil.
+- **findIf:** finds a value on an iterable given a function. Returns the value or nil.
+- **map:** standar map function.
+- **filter:** standard filter function.
+- **reduce:** standard reduce function.
