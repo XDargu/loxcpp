@@ -106,6 +106,12 @@ classe Student
         torna aixo.name + " " + aixo.surname;
     }
 }
+
+// Create a new student
+fes student = Student("Jaume", "Serra", 2394);
+
+// Print the student name
+imprimeix student.getFullName();
 ```
 
 Let't now look at all the extra features that [Loxcpp](https://github.com/XDargu/loxcpp) has, and how they work in Catalox. All of them are, of course, direct translations from Loxcpp.
