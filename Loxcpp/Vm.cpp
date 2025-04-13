@@ -1376,20 +1376,17 @@ void VM::defineMethod(ObjString* name)
 Value VM::instanceToString(Value& instanceVal)
 {
     // Consumes the instance!
-    if (isInstance(instanceVal))
-    {
-        ObjInstance* instance = asInstance(instanceVal);
-        ObjString* toStr = takeString("toString");
+    ObjInstance* instance = asInstance(instanceVal);
+    ObjString* toStr = takeString("toString");
 
-        Value method;
-        if (instance->klass->methods.get(toStr, &method))
-        {
-            // Bind method pops the instance, we need to push it again
-            push(instanceVal);
-            bindMethod(instance, toStr);
-            // Here stack is [instance, boundMethod]
-            return callFunction(this, pop());
-        }
+    Value method;
+    if (instance->klass->methods.get(toStr, &method))
+    {
+        // Bind method pops the instance, we need to push it again
+        push(instanceVal);
+        bindMethod(instance, toStr);
+        // Here stack is [instance, boundMethod]
+        return callFunction(this, pop());
     }
 
     return Value();

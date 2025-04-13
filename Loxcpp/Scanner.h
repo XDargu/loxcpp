@@ -224,76 +224,87 @@ private:
     {
         switch (source.at(start))
         {
-            case 'a': return checkKeyword(1, 2, "nd", TokenType::AND);
-            case 'b': return checkKeyword(1, 4, "reak", TokenType::BREAK);
+            case 'a':
+                if (current - start > 1)
+                {
+                    switch (source.at(start + 1))
+                    {
+                        case 'i': return checkKeyword(2, 2, "xo", TokenType::THIS);
+                    }
+                    
+                }
+                else
+                {
+                    return checkKeyword(1, 0, "", TokenType::IN);
+                }
+                break;
             case 'c':
                 if (current - start > 1)
                 {
                     switch (source.at(start + 1))
                     {
-                        case 'a': return checkKeyword(2, 2, "se", TokenType::CASE);
-                        case 'l': return checkKeyword(2, 3, "ass", TokenType::CLASS);
-                        case 'o': 
-                            if (current - start > 2)
-                            {
-                                switch (source.at(start + 2))
-                                {
-                                    case 'n':
-                                        if (current - start > 3)
-                                        {
-                                            switch (source.at(start + 3))
-                                            {
-                                            case 's': return checkKeyword(4, 1, "t", TokenType::CONST);
-                                            case 't': return checkKeyword(4, 2, "inue", TokenType::CONTINUE);
-                                            }
-                                        }
-                                        break;
-                                }
-                            }
-                            break;
+                        case 'a': return checkKeyword(2, 1, "s", TokenType::CASE);
+                        case 'l': return checkKeyword(2, 4, "asse", TokenType::CLASS);
                     }
                 }
                 break;
-            case 'e': return checkKeyword(1, 3, "lse", TokenType::ELSE);
-            case 'i':
-                if (current - start > 1)
-                {
-                    switch (source.at(start + 1))
-                    {
-                    case 'f': return checkKeyword(2, 0, "", TokenType::IF);
-                    case 'n': return checkKeyword(2, 0, "", TokenType::IN);
-                    }
-                }
-                break;
-            case 'n': return checkKeyword(1, 2, "il", TokenType::NIL);
-            case 'm': return checkKeyword(1, 4, "atch", TokenType::MATCH);
-            case 'o': return checkKeyword(1, 1, "r", TokenType::OR);
-            case 'p': return checkKeyword(1, 4, "rint", TokenType::PRINT);
-            case 'r': return checkKeyword(1, 5, "eturn", TokenType::RETURN);
-            case 's': return checkKeyword(1, 4, "uper", TokenType::SUPER);
-            case 'v': return checkKeyword(1, 2, "ar", TokenType::VAR);
-            case 'w': return checkKeyword(1, 4, "hile", TokenType::WHILE);
             case 'f':
                 if (current - start > 1)
                 {
                     switch (source.at(start + 1))
                     {
-                        case 'a': return checkKeyword(2, 3, "lse", TokenType::FALSE);
-                        case 'o': return checkKeyword(2, 1, "r", TokenType::FOR);
-                        case 'u': return checkKeyword(2, 1, "n", TokenType::FUN);
+                    case 'a': return checkKeyword(2, 2, "ls", TokenType::FALSE);
+                    case 'e': return checkKeyword(2, 1, "s", TokenType::VAR);
+                    case 'i': return checkKeyword(2, 1, "x", TokenType::CONST);
                     }
                 }
                 break;
-            case 't':
+            case 'i':
+                if (current - start > 1)
+                {
+                    return checkKeyword(1, 8, "mprimeix", TokenType::PRINT);
+                }
+                else if (current - start == 1)
+                {
+                    return TokenType::AND;
+                }
+                break;
+            case 'm': return checkKeyword(1, 5, "entre", TokenType::WHILE);
+            case 'o': return checkKeyword(1, 0, "", TokenType::OR);
+            case 'p':
                 if (current - start > 1)
                 {
                     switch (source.at(start + 1))
                     {
-                    case 'h': return checkKeyword(2, 2, "is", TokenType::THIS);
-                    case 'r': return checkKeyword(2, 2, "ue", TokenType::TRUE);
+                    case 'a': return checkKeyword(2, 4, "rtit", TokenType::MATCH);
+                    case 'e': return checkKeyword(2, 1, "r", TokenType::FOR);
+                    case 'r': return checkKeyword(2, 4, "oces", TokenType::FUN);
                     }
                 }
                 break;
+            case 's':
+                if (current - start > 1)
+                {
+                    switch (source.at(start + 1))
+                    {
+                    case 'e': return checkKeyword(2, 5, "gueix", TokenType::CONTINUE);
+                    case 'u': return checkKeyword(2, 3, "per", TokenType::FOR);
+                    case 'i':
+                        if (current - start > 2)
+                        {
+                            return checkKeyword(2, 2, "no", TokenType::ELSE);
+                        }
+                        else
+                        {
+                            return checkKeyword(2, 0, "", TokenType::IF);
+                        }
+                        break;
+                    }
+                }
+                break;
+            case 'r': return checkKeyword(1, 2, "es", TokenType::NIL);
+            case 't': return checkKeyword(1, 4, "orna", TokenType::RETURN);
+            case 'v': return checkKeyword(1, 8, "eritable", TokenType::TRUE);
         }
 
         return TokenType::IDENTIFIER;

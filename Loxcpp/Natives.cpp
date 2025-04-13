@@ -341,29 +341,29 @@ Value reduce(int argCount, Value* args, VM* vm)
 
 void registerNatives(VM* vm)
 {
-    vm->defineNative("clock", 1, &clock);
-    vm->defineNative("sizeOf", 1, &sizeOf);
+    vm->defineNative("rellotge", 1, &clock);
+    vm->defineNative("mida", 1, &sizeOf);
 
     // Types
-    vm->defineNative("isList", 1, &isList);
-    vm->defineNative("inBounds", 1, &inBounds);
+    vm->defineNative("esLlista", 1, &isList);
+    vm->defineNative("enLimits", 1, &inBounds);
 
     // IO
-    vm->defineNative("readInput", 0, &readInput);
-    vm->defineNative("readFile", 1, &readFile);
-    vm->defineNative("writeFile", 2, &writeFile);
+    vm->defineNative("llegirTeclat", 0, &readInput);
+    vm->defineNative("llegirFitxer", 1, &readFile);
+    vm->defineNative("escriureFitxer", 2, &writeFile);
 
     // Lists
-    vm->defineNative("push", 2, &push);
-    vm->defineNative("pop", 1, &pop);
-    vm->defineNative("erase", 2, &erase);
-    vm->defineNative("concat", 2, &concat);
+    vm->defineNative("afegir", 2, &push);
+    vm->defineNative("treure", 1, &pop);
+    vm->defineNative("esborrar", 2, &erase);
+    vm->defineNative("ajuntar", 2, &concat);
 
     // Iterables
-    vm->defineNative("contains", 2, &contains);
-    vm->defineNative("indexOf", 2, &indexOf);
-    vm->defineNative("findIf", 2, &findIf);
-    vm->defineNative("map", 2, &map);
-    vm->defineNative("filter", 2, &filter);
-    vm->defineNative("reduce", 2, &reduce);
+    vm->defineNative("conte", 2, &contains);
+    vm->defineNative("indexDe", 2, &indexOf);
+    vm->defineNative("trobaSi", 2, &findIf);
+    vm->defineNative("mapa", 2, &map);
+    vm->defineNative("filtra", 2, &filter);
+    vm->defineNative("redueix", 2, &reduce);
 }

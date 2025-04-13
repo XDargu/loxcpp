@@ -74,7 +74,7 @@ struct ObjString : Obj
     }
     ObjString(std::string&& str)
         : Obj(ObjType::STRING)
-        , length(str.length())
+        , length(static_cast<int>(str.length()))
         , chars(std::move(str))
     {
 #ifdef DEBUG_OBJECT_LIFETIME

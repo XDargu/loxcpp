@@ -42,7 +42,7 @@ CompilerScope::CompilerScope(FunctionType type, CompilerScope* enclosing, Token*
 
     if (type != FunctionType::FUNCTION)
     {
-        local.name.start = "this";
+        local.name.start = "aixo";
         local.name.length = 4;
     }
     else
